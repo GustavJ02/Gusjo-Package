@@ -1,0 +1,114 @@
+with Ada.Float_Text_IO; use Ada.Float_Text_IO;
+with Ada.Text_IO;       use Ada.Text_IO;
+with Gusjo.Math.Linalg; use Gusjo.Math.Linalg;
+with Gusjo.Math;        use Gusjo.Math;
+
+procedure Main is
+   
+   M     : Matrix;
+   M_Inv : Matrix;
+   Prod  : Matrix;
+   
+   S     : Matrix;
+   X     : Matrix;
+   S_Inv : Matrix;
+   
+   A     : Matrix;
+   B     : Matrix;
+   On    : Matrix;
+   
+begin
+   New_Line;
+   Put_Line("-----  Part 1  -----");
+   New_Line;
+   
+   Put("Enter Matrix, start with the dimensions (NxM): ");
+   Get(M);
+   
+   New_Line;
+   Put_Line("You entered the matrix:");
+   Put(M);
+   
+   Put("Determinant of M is: ");
+   Put(Det(M), Fore => 0, Aft => 0, Exp => 0);
+   New_Line;
+   
+   M_Inv := Inverse(M);
+   
+   Put_Line("The inverse of M is:");
+   Put(M_Inv);
+   New_Line;
+   
+   Prod := M * M_Inv;
+   
+   Put_Line("The product of M and M_Inv is:");
+   Put(Prod);
+   
+   Delete(M);
+   Delete(M_Inv);
+   Delete(Prod);
+   
+   New_Line;
+   Put_Line("-----  Part 2  -----");
+   New_Line;
+   
+   Put("Enter Matrix S, start with the dimensions (NxM): ");
+   Get(S);
+   
+   New_Line;
+   Put_Line("You entered the matrix:");
+   Put(S);
+   
+   Put("Enter Matrix X, start with the dimensions (NxM): ");
+   Get(X);
+   
+   New_Line;
+   Put_Line("You entered the matrix:");
+   Put(X);
+   
+   S_Inv := Inverse(S);
+   
+   New_Line;
+   Put_Line("The Inverse of S is:");
+   Put(S_Inv);
+   
+   Prod := S_Inv * X;
+   
+   New_Line;
+   Put_Line("The producst S_Inv * X is:");
+   Put(Prod);
+   
+   Delete(Prod);
+   Delete(S);
+   Delete(S_Inv);
+   Delete(X);
+   
+   New_Line;
+   Put_Line("-----  Part 3  -----");
+   New_Line;
+   
+   New_Line;
+   Put("Enter Matrix A: ");
+   Get(A);
+   
+   New_Line;
+   Put_Line("You entered A:");
+   Put(A);
+   
+   On := Ones(Rows(A), Cols(A));
+   
+   New_Line;
+   Put_Line("Ones-matrix with same dimension");
+   Put(On);
+   
+   Combine_Horizontally(A, On);
+   
+   New_Line;
+   Put_Line("Horizontal combination of A and ones:");
+   Put(A);
+   
+   Delete(A);
+   Delete(B);
+   Delete(On);
+   
+end Main;

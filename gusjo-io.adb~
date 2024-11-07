@@ -1,0 +1,150 @@
+with Ada.Integer_Text_IO;        use Ada.Integer_Text_IO;
+with Ada.Text_IO;                use Ada.Text_IO;
+with Ada.Unchecked_Deallocation;
+
+package body IO_Package is
+   
+   procedure Put_Padding(Item: in Natural;
+			 Width: in Integer) is
+      
+      String_Value: String(1..Width) := (others => '0');
+      Item_String: String(Integer'Image(Item)'range) := Item'Image;
+      
+   begin
+      
+      for I in reverse Item_String'Range loop
+	 if Item_String(I) in '0'..'9' then
+	    String_Value(String_Value'Last - Item_String'Last + I) := Item_String(I);
+	 end if;
+      end loop;
+      Put(String_Value);
+   end Put_Padding;
+   
+   
+   procedure Get_Correct(Item: out Character) is
+   begin
+      loop
+	 Get(Item);
+	 exit when Item /= ' ';
+      end loop;
+   end Get_Correct;
+   
+   procedure Fill_String(Item: in out My_String) is
+   begin
+      if not End_Of_Line then
+	 Item := new String_Entry;
+	 Get(Item.Char);
+	 Fill_String(Item.Next);
+      end if;
+   end Fill_String;
+   
+   procedure Fill_String_First(Item: out My_String) is
+   begin
+      Get_Correct(Item.Char);
+      Fill_String(Item.Next);
+   end Fill_String_First;
+     
+   procedure Get_Line(Item: out My_String) is
+   begin
+      Item:= new String_Entry;
+      Fill_String_First(Item);
+      Skip_Line;
+   end Get_Line;
+   
+   procedure Put(Item: in My_String) is
+   begin
+      Put(Item.Char);
+      if Item.Next /= null then
+	 Put(Item.Next);
+      end if;
+   end Put;
+   
+   function Count(Char: in Character;
+		  Item: in My_String) return Integer is
+   begin
+      if Item.Next /= null and Item.Char = Char then
+	 if Item.Next.Char = Char then
+	    return Count(Char, Item.Next);
+	 else
+	    return Count(Char, Item.Next) + 1;
+	 end if;
+      elsif Item.Next /= null then
+	 return Count(Char, Item.Next);
+      else
+	 return 0;
+      end if;
+   end Count;
+   
+   procedure Free is new Ada.Unchecked_Deallocation(String_Entry, My_String);
+   
+   procedure Split_On_First(Char: in Character;
+			    First: in out My_String;
+			    Remaining: in out My_String) is
+   begin
+      if First.Char = Char then
+	 Remaining := First.Next;
+	 Free(First);
+	 First := null;
+      elsif First.Next /= null then
+	Split_On_First(Char, First.Next, Remaining);
+      end if;
+   end Split_On_First;
+   
+   procedure Clear_Init_Char(Char: in Character;
+			     Item: in out My_String) is
+      Tmp: My_String;
+   begin
+      if Item.Char = Char then
+	 Tmp:= Item.Next;
+	 Free(Item);
+	 Item := Tmp;
+	 if Item.Next /= null then
+	    Clear_Init_Char(Char, Item);
+	 end if;
+      end if;
+   end Clear_Init_Char;
+   
+   procedure Split_First(Char: in Character;
+			 Remaining: in out My_String;
+			 First: out My_String) is
+   begin
+      First := Remaining;
+      Split_On_First(Char, First, Remaining);
+      Clear_Init_Char(Char, Remaining);
+   end Split_First;
+   
+   function Split(Item: in My_String;
+		  Char: in Character) return My_String_List is
+      
+      Nr_Of_Char: Integer;
+      Result: My_String_List;
+      
+      First_String: My_String;
+      Remaining_String: My_String := Item;
+      
+   begin
+            
+      Nr_Of_Char := Count(Char, Remaining_String);
+      Result := new My_String_List_Type(1 .. (Nr_Of_Char + 1));
+      
+      for I in Result'Range loop
+	 Split_First(Char, Remaining_String, First_String);
+	 Result(I) := First_String;
+      end loop;
+      
+      return Result;
+   end Split;
+   
+   procedure Put(Item: in My_String_List) is
+   begin
+      Put('[');
+      for I in Item'Range loop
+	 Put(Item(I));
+	 if I /= Item'Last then
+	    Put(',');
+	 end if;
+      end loop;
+      Put(']');
+   end Put;
+   
+end IO_Package;

@@ -1,0 +1,9 @@
+package Gusjo is
+   
+   Null_Pointer_Exception : exception;
+   Internal_Error         : exception;
+   
+   funciton "*"(Left: in Float;
+Right: in Integer) return Integer;
+   
+end Gusjo;

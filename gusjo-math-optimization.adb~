@@ -1,0 +1,26 @@
+package body Gusjo.Math.Optimization is
+   
+   
+   function Variable(Name : in My_String;
+		     Restriction : in Sign_Restriction := Free) return Variable is
+      Result : Variable;
+   begin
+      Result.Value       := 0.0;
+      Result.Name        := Name;
+      Result.Restriction := Restriction;
+   end Variable;
+   
+   function Variable(Name : in String;
+		     Restriction : in Sign_Restriction := Free) return Variable is
+   begin
+      return Variable(To_My_String(Name), Restriction);
+   end Variable;
+   
+   function Linear_Model(Mode : in Mode_Type) return Model is
+      Result: Model;
+   begin
+      Resutl.Mode := Mode;
+      return Result;
+   end Linear_Model;
+   
+end Gusjo.Math.Optimization;

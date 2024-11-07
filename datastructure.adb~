@@ -1,0 +1,12 @@
+with Gusjo.Ds.Stack;
+
+procedure Datastructure is
+   type Integer_Stack is new Gusjo.Ds.Stack(Element_Type => Integer);
+   use Integer_Stack;
+   
+   S: Stack_Type;
+begin
+   
+   
+   
+end Datastructure;

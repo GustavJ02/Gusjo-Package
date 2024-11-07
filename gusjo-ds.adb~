@@ -1,0 +1,101 @@
+with Ada.Unchecked_Deallocation;
+
+package body Gusjo.Ds is
+   
+   -- Free
+   procedure Free is new Ada.Unchecked_Deallocation(List_Element_Type, Stack_Type);
+   
+   procedure Free is new Ada.Unchecked_Deallocation(Stack_Element_Type, Queue_Type);
+   
+   procedure Free is new Ada.Unchecked_Deallocation(Queue_Element_Type, Linked_List_Type);
+   
+   -- Linked List
+   procedure Insert_First(Item: in     Float;
+			  List: in out Linked_List_Type) is
+      Tmp : Linked_List_Type;
+   begin
+      Tmp:= new List_Element_Type;
+      Tmp.Data:= Item;
+      List.Next:= List;
+      List:= Tmp;
+      Free(Tmp);
+   end Insert_First;
+   
+   procedure Insert(Item: in     Float;
+		    List: in out Linked_List_Type) is
+   begin
+      if List = null or else Item > List.Data then
+	 Insert_First(Item, List);
+      elsif Item /= List.Data then
+	 Insert(Item, List.Next);
+      end if;
+   end Insert;
+   
+   -- Queue
+   procedure Enqueue(Item:  in     Float;
+		     Queue: in out Queue_Type);
+   
+   procedure Dequeue(Item:     out Float;
+		     Queue: in out Queue_Type);
+   
+   function Isempty(Queue: in Queue_Type) return Boolean is
+   begin
+      return Queue = null;
+   end Isempty;
+   
+   function Front(Queue: in Queue_Type) return Float;
+   
+   function Size(Queue: in Queue_Type) return Integer is
+   begin
+      if Queue = null then
+	 return 0;
+      else
+	 return 1 + Queue(Stack.Next);
+      end if;
+   end Size;
+     
+   -- Stack
+   procedure Push(Item:  in     Float;
+		  Stack: in out Stack_Type) is
+   begin
+      Stack := new Stack_Element_Type(Data => Item, Next => Stack);
+   end Push;
+   
+   procedure Pop(Item:     out Float;
+		 Stack: in out Stack_Type) is
+      Tmp : Stack_Type;
+   begin
+      if Stack /= null then
+	 Item:= Stack.Data;
+	 
+	 Tmp := Stack.Next;
+	 Free(Stack);
+	 Stack := Tmp;
+      else
+	 raise Null_Pointer_Exception with "Stack is null";
+      end if;
+   end Pop;
+   
+   function Isempty(Stack: in Stack_Type) return Boolean is
+   begin
+      return Stack = null;
+   end Isempty;
+   
+   function Top(Stack: in Stack_Type) return Float is
+   begin
+      if Stack /= null then
+	 return Stack.Data;
+      else
+	 raise Null_Pointer_Exception with "Stack is null";
+      end if;
+   end Top;
+	 
+   function Size(Stack: in Stack_Type) return Integer is
+   begin
+      if Stack = null then
+	 return 0;
+      else
+	 return 1 + Size(Stack.Next);
+      end if;
+   end Size;
+end Gusjo.Ds;

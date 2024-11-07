@@ -1,0 +1,433 @@
+with Ada.Integer_Text_IO;        use Ada.Integer_Text_IO;
+with Ada.Float_Text_IO;          use Ada.Float_Text_IO;
+with Ada.Unchecked_Deallocation;
+
+package body Linalg is
+   
+   procedure Free is new Ada.Unchecked_Deallocation(Matrix_Type, Matrix);
+   
+   procedure Delete(Item : in out Matrix) is
+   begin
+      Free(Item);
+   end Delete;
+   
+   procedure Null_Check(Item : in Matrix) is
+   begin
+      if Item = null then
+	 raise Null_Pointer_Exception with "Matrix is null";
+      end if;
+   end Null_Check;
+   
+   procedure Square_Check(Item : in Matrix) is
+   begin
+      if Item'Last(1) /= Item'Last(2) then
+	 raise Dimension_Error with "Matrix must be square";
+      end if;
+   end Square_Check;
+   
+   procedure Same_Dimension(Left, Right: in Matrix) is
+   begin
+      if Rows(Left) /= Rows(Right) or Cols(Left) /= Cols(Right) then
+	 raise Dimension_Error with "Matrixes must have the same dimension";
+      end if;
+   end Same_Dimension;
+   
+   procedure Get(File : in File_Type;
+		 Item : in out Matrix;
+		 N, M : in Integer) is
+   begin
+      if Item /= null then
+      	 Delete(Item);
+      end if;
+      
+      Item := new Matrix_Type(1..N, 1..M);
+      
+      for I in Item'Range(1) loop
+	 for J in Item'Range(2) loop
+	    Get(File, Item(I, J));
+	 end loop;
+      end loop;
+      
+   end Get;
+   
+   
+   procedure Get(File : in File_Type;
+		 Item : in out Matrix) is
+      N, M : Integer;
+   begin
+      Get(File, N);
+      Get(File, M);
+      
+      Put_Line("N:" & N'Image);
+      Put_Line("M:" & M'Image);
+      
+      Get(File, Item, N, M);
+      
+   end Get;
+   
+   procedure Get(Item : in out Matrix;
+		 N, M : in Integer) is
+   begin
+      Get(Standard_Input, Item, N, M);
+   end Get;
+   
+   procedure Get(Item : in out Matrix) is
+   begin
+      Get(Standard_Input, Item);
+   end Get;
+   
+   
+   procedure Put(File : in File_Type;
+		 Item : in Matrix;
+		 Fore : in Integer := 5;
+		 Aft  : in Integer := 5;
+		 Exp  : in Integer := 0) is
+   begin
+      Null_Check(Item);
+      for I in Item'Range(1) loop
+	 for J in Item'Range(2) loop
+	    Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
+	 end loop;
+	 New_Line(File);
+      end loop;
+   end Put;
+   
+   procedure Put(Item : in Matrix;
+		 Fore : in Integer := 5;
+		 Aft  : in Integer := 5;
+		 Exp  : in Integer := 0) is
+   begin
+      Put(Standard_Output, Item, Fore, Aft, Exp);
+   end Put;
+   
+   function Transpose(Item : in Matrix) return Matrix is
+      Result : Matrix;
+   begin
+      Null_Check(Item);
+      Square_Check(Item);
+      
+      Result := new Matrix_Type(Item'Range(1), Item'Range(2));
+      
+      for I in Item'Range(1) loop
+	 for J in Item'Range(2) loop
+	    Result(J, I) := Item(I, J);
+	 end loop;
+      end loop;
+      
+      return Result;
+   end Transpose;
+   
+   
+   function Identity_Matrix(N : in Positive) return Matrix is
+      Result : Matrix;
+   begin
+      Result := new Matrix_Type(1..N, 1..N);
+      
+      for I in 1..N loop
+	 Result(I, I) := 1.0;
+      end loop;
+      return Result;
+   end Identity_Matrix;
+   
+   ----------------------------------------------------------------------------------
+   
+   function Matrix_With_Num(N, M : in Positive;
+			    Value : in Float) return Matrix is
+      Result : Matrix;
+   begin
+      Result := new Matrix_Type(1..N, 1..M);
+      
+      for I in 1..N loop
+	 Result(I, I) := 1.0;
+      end loop;
+      return Result;
+   end Matrix_With_Num;
+   
+   function Matrix_With_Num(N : in Positive;
+			    Value : in Float) return Matrix is
+   begin
+      return Matrix_With_Num(N, 1, Value);
+   end Matrix_With_Num;
+   
+   function Zeros(N : in Positive) return Matrix is
+   begin
+      return Matrix_With_Num(N, 1, 0.0);
+   end Zeros;
+   
+   function Zeros(N, M : in Positive) return Matrix is
+   begin
+      return Matrix_With_Num(N, M, 0.0);
+   end Zeros;
+   
+   function Ones(N : in Positive) return Matrix is
+   begin
+      return Matrix_With_Num(N, 1, 0.0);
+   end Ones;
+   
+   function Ones(N, M : in Positive) return Matrix is
+   begin
+      return Matrix_With_Num(N, M, 0.0);
+   end Ones;
+   
+   ----------------------------------------------------------------------------------
+   
+   function Cols(Item : in Matrix) return Positive is
+   begin
+      Null_Check(Item);
+      return Item'Last(2);
+   end Cols;
+
+   function Rows(Item : in Matrix) return Positive is
+   begin
+      Null_Check(Item);
+      return Item'Last(1);
+   end Rows;
+   
+   function Copy_Dimension(Item : in Matrix) return Matrix is
+   begin
+      return new Matrix_Type(Item'Range(1), Item'Range(2));
+   end Copy_Dimension;
+   
+   function "*"(Left, Right : in Matrix) return Matrix is
+      Result : Matrix;
+      Sum    : Float;
+   begin
+      Null_Check(Left);
+      Null_Check(Right);
+      
+      if Rows(Left) /= Cols(Right) or Cols(Left) /= Rows(Right) then
+	 raise Dimension_Error;
+      end if;
+      
+      Result := new Matrix_Type(1..Rows(Left), 1..Cols(Right));
+      
+      for I in Left'Range(1) loop
+	 for K in Right'range(2) loop
+	    Sum := 0.0;
+	    
+	    for J in Left'Range(2) loop
+	       Sum := Sum + Left(I, J) * Right(J, K);
+	    end loop;
+	    
+	    Result(I, K) := Sum;
+	 end loop;
+      end loop;
+      return Result;
+      
+   end "*";
+   
+   function "*"(Left  : in Matrix;
+		Right : in Float) return Matrix is
+      Result : Matrix;
+   begin
+      Null_Check(Left);
+      
+      Result := Copy_Dimension(Left);
+      
+      for I in Left'Range(1) loop
+	 for J in Left'Range(2) loop
+	    Result(I, J) := Left(I, J) * Right;
+	 end loop;
+      end loop;
+      
+      return Result;
+      
+   end "*";
+   
+   function "*"(Left  : in Float;
+		Right : in Matrix) return Matrix is
+   begin
+      return Right * Left;
+   end "*";
+   
+   function "*"(Left  : in Matrix;
+		Right : in Integer) return Matrix is
+   begin
+      return Left * Float(Right);
+   end "*";
+   
+   function "*"(Left  : in Integer;
+		Right : in Matrix) return Matrix is
+   begin
+      return Float(Left) * Right;
+   end "*";
+   
+   function "+"(Left, Right: in Matrix) return Matrix is
+      Result : Matrix;
+   begin
+      Null_Check(Left);
+      Null_Check(Right);
+      Same_Dimension(Left, Right);
+      
+      Result := Copy_Dimension(Left);
+      
+      for I in Left'Range(1) loop
+	 for J in Left'Range(2) loop
+	    Result(I, J) := Left(I, J) + Right(I, J);
+	 end loop;
+      end loop;
+      
+      return Result;
+   end "+";
+   
+   
+   function "-"(Left, Right : in Matrix) return Matrix is
+      Result : Matrix;
+   begin
+      Null_Check(Left);
+      Null_Check(Right);
+      Same_Dimension(Left, Right);
+      
+      Result := Copy_Dimension(Left);
+      
+      for I in Left'Range(1) loop
+	 for J in Left'Range(2) loop
+	    Result(I, J) := Left(I, J) - Right(I, J);
+	 end loop;
+      end loop;
+      
+      return Result;
+   end "-";
+   
+   function Equals(Left, Right : in Matrix) return Boolean is
+   begin
+      Null_Check(Left);
+      Null_Check(Right);
+      
+      begin
+	 Same_Dimension(Left, Right);
+      exception
+	 when Dimension_Error =>
+	    return False;
+      end;
+      
+      for I in Left'Range(1) loop
+	 for J in Left'Range(2) loop
+	    if Left(I, J) /= Right(I, J) then
+	       return False;
+	    end if;
+	 end loop;
+      end loop;
+      
+      return True;
+   end Equals;
+   
+   function Remove_Row(Item : in Matrix;
+		       N    : in Positive) return Matrix is
+      Result : Matrix;
+   begin
+      Result := new Matrix_Type(1..Rows(Item)-1, Item'Range(2));
+      
+      for I in Item'Range(1) loop
+	 for J in Item'Range(2) loop
+	    if I < N then
+	       Result(I, J) := Item(I, J);
+	    elsif I > N then
+	       Result(I - 1 , J) := Item(I, J);
+	    end if;
+	 end loop;
+      end loop;
+      return Result;
+   end Remove_Row;
+   
+   function Remove_Col(Item : in Matrix;
+		       M    : in Positive) return Matrix is
+      Result : Matrix;
+   begin
+      Result := new Matrix_Type(Item'Range(1), 1..Cols(Item)-1);
+      
+      for I in Item'Range(1) loop
+	 for J in Item'Range(2) loop
+	    if J < M then
+	       Result(I, J) := Item(I, J);
+	    elsif J > M then
+	       Result(I , J - 1) := Item(I, J);
+	    end if;
+	 end loop;
+      end loop;
+      return Result;
+   end Remove_Col;
+   
+   function Det(Item : in Matrix) return Float is
+      Result  : Float   := 0.0;
+      OddTurn : Boolean := True;
+      Tmp1    : Matrix;
+      Tmp2    : Matrix;
+   begin
+      Null_Check(Item);
+      Square_Check(Item);
+      
+      if Item'Last(1) = 1 or Item'Last(2) = 1 then
+   	 --raise Dimension_Error with "Trying to compute Determinant of a 1x1 matrix";
+	 return Item(1, 1);
+      end if;
+      
+      if Item'Last(1) = 2 and Item'Last(2) = 2 then
+   	 Result := Item(1, 1) * Item(2, 2) - Item(1, 2) * Item(2, 1);
+      else
+   	 for J in Item'Range(2) loop
+   	    Tmp1 := Remove_Row(Item, 1);
+   	    Tmp2 := Remove_Col(Tmp1, J);
+	    
+   	    if OddTurn then
+   	       Result := Result + Item(1, J) * Det(Tmp2);
+   	    else
+   	       Result := Result - Item(1, J) * Det(Tmp2);
+   	    end if;
+	    
+   	    OddTurn := not OddTurn;
+	    
+   	    Free(Tmp1);
+   	    Free(Tmp2);
+	    
+   	 end loop;
+      end if;
+      return Result;
+   end Det;
+
+   function Adjugate(Item : in Matrix) return Matrix is
+      Result : Matrix;
+      Minor_Matrix : Matrix;
+      Cofactor_Matrix : Matrix;
+      
+      function OddEven(I, J : in Integer) return Float is
+      begin
+   	 if (I + J) mod 2 = 0 then
+   	    return 1.0;
+   	 else
+   	    return-1.0;
+   	 end if;
+      end OddEven;
+      
+   begin
+      Result := Copy_Dimension(Item);
+      for I in Item'Range(1) loop
+   	 for J in Item'Range(2) loop
+   	    Minor_Matrix := Remove_Row(Item, I);
+   	    Cofactor_Matrix := Remove_Col(Minor_Matrix, J);
+	    
+   	    Result(J, I) := OddEven(I, J) * Det(Cofactor_Matrix);
+	    
+   	    Free(Minor_Matrix);
+   	    Free(Cofactor_Matrix);
+   	 end loop;
+      end loop;
+      return Result;
+   end Adjugate;
+   
+   function Inverse(Item : in Matrix) return Matrix is
+      Result : Matrix;
+   begin
+      Null_Check(Item);
+      Square_Check(Item);
+      
+      if Det(Item) = 0.0 then
+   	 raise Invertion_Error with "Matrix is not invertible";
+      end if;
+      
+      Result := Adjugate(Item);
+      
+      return (1.0 / Det(Item)) * Result;
+   end Inverse;
+   
+end Linalg;

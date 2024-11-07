@@ -1,0 +1,12 @@
+with Gusjo; use Gusjo;
+
+generic
+   type Element_Type is private;
+
+package Gusjo.Ds.Stack is
+   
+   
+private
+   
+   
+end Gusjo.Ds.Stack;

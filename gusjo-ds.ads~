@@ -1,0 +1,72 @@
+with Gusjo;  use Gusjo;
+
+package Gusjo.Ds is
+   
+   type Stack_Type is private;
+   
+   type Queue_Type is private;
+   
+   type Linked_List_Type is private;
+   
+   -- Linked List
+   procedure Insert(Item: in     Float;
+		    List: in out Linked_List_Type);
+   
+   -- Queue
+   procedure Enqueue(Item:  in     Float;
+		     Queue: in out Queue_Type);
+   
+   procedure Dequeue(Item:     out Float;
+		     Queue: in out Queue_Type);
+   
+   function Isempty(Queue: in Queue_Type) return Boolean;
+   
+   function Front(Queue: in Queue_Type) return Float;
+   
+   function Size(Queue: in Queue_Type) return Integer;
+   
+   -- Stack
+   procedure Push(Item:  in     Float;
+		  Stack: in out Stack_Type);
+   
+   procedure Pop(Item:     out Float;
+		 Stack: in out Stack_Type);
+   
+   function Isempty(Stack: in Stack_Type) return Boolean;
+   
+   function Top(Stack: in Stack_Type) return Float;
+
+   function Size(Stack: in Stack_Type) return Integer;
+   
+private
+   -- Linked List
+   type List_Element_Type is
+      record
+	 Data: Float;
+	 Next: Linked_List_Type;
+      end record;
+   
+   type Linked_List_Type is
+     access List_Element_Type;
+   
+   -- Stack
+   type Stack_Element_Type is
+      record
+	 Data: Float;
+	 Next: Stack_Type;
+      end record;
+   
+   type Stack_Type is
+     access Stack_Element_Type;
+   
+   -- Queue
+   type Queue_Element_Type is
+      record
+	 Data: Float;
+	 Next: Queue_Type;
+      end record;
+   
+   type Queue_Type is
+     access Queue_Element_Type;
+   
+end Gusjo.Ds;
