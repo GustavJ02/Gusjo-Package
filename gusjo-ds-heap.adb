@@ -2,79 +2,126 @@ with Gusjo;    use Gusjo;
 with Gusjo.Ds; use Gusjo.Ds;
 
 package body Gusjo.Ds.Heap is
-   
-   procedure Insert(Item: in Element_Type;
-		    Heap: in out Min_Heap_Type) is
-      Position : Heap_Index := Heap.Size;
+
+   procedure Swap(Heap: in out Heap_Type; Index1, Index2: in Heap_Index) is
+      Temp : Element_Type := Heap(Index1);
+   begin
+      Heap(Index1) := Heap(Index2);
+      Heap(Index2) := Temp;
+   end Swap;
+
+   procedure Sink_Min(Heap: in out Min_Heap_Type; Start: in Heap_Index) is
+      Current : Heap_Index := Start;
+      Child   : Heap_Index;
+   begin
+      loop
+         Child := 2 * Current + 1;
+
+         if Child < Heap.Size - 1 and then Heap.Heap(Child + 1) < Heap.Heap(Child) then
+            Child := Child + 1;
+         end if;
+
+         exit when Child >= Heap.Size or else Heap.Heap(Current) <= Heap.Heap(Child);
+
+         Swap(Heap.Heap, Current, Child);
+         Current := Child;
+      end loop;
+   end Sink_Min;
+
+   procedure Sink_Max(Heap: in out Max_Heap_Type; Start: in Heap_Index) is
+      Current : Heap_Index := Start;
+      Child   : Heap_Index;
+   begin
+      loop
+         Child := 2 * Current + 1; -- Left child index
+
+         if Child < Heap.Size - 1 and then Heap.Heap(Child + 1) > Heap.Heap(Child) then
+            Child := Child + 1;
+         end if;
+
+         exit when Child >= Heap.Size or else Heap.Heap(Current) >= Heap.Heap(Child);
+
+         Swap(Heap.Heap, Current, Child);
+         Current := Child;
+      end loop;
+   end Sink_Max;
+
+   procedure Swim_Min(Heap: in out Min_Heap_Type; Start: in Heap_Index) is
+      Current : Heap_Index := Start;
+      Parent  : Heap_Index;
+   begin
+      while Current > 0 loop
+         Parent := (Current - 1) / 2; -- Parent index
+
+         exit when Heap.Heap(Current) >= Heap.Heap(Parent);
+
+         Swap(Heap.Heap, Current, Parent);
+         Current := Parent;
+      end loop;
+   end Swim_Min;
+
+   procedure Swim_Max(Heap: in out Max_Heap_Type; Start: in Heap_Index) is
+      Current : Heap_Index := Start;
+      Parent  : Heap_Index;
+   begin
+      while Current > 0 loop
+         Parent := (Current - 1) / 2; -- Parent index
+
+         exit when Heap.Heap(Current) <= Heap.Heap(Parent);
+
+         Swap(Heap.Heap, Current, Parent);
+         Current := Parent;
+      end loop;
+   end Swim_Max;
+
+   procedure Insert(Item: in Element_Type; Heap: in out Min_Heap_Type) is
    begin
       if Heap.Size = Heap.Heap'Last then
          raise Heap_Overflow with "Max capacity reached.";
       end if;
 
-      -- Place the item at the end of the heap
-      Heap.Heap(Position) := Item;
+      Heap.Heap(Heap.Size) := Item;
+      Swim_Min(Heap, Heap.Size);
       Heap.Size := Heap.Size + 1;
-
-      -- Bubble up the item to maintain min-heap property
-      while Position > 0 loop
-         declare
-            Parent : constant Heap_Index := (Position - 1) / 2;
-         begin
-            if Heap.Heap(Parent) <= Heap.Heap(Position) then
-	       exit; -- Heap property is satisfied
-            end if;
-
-            -- Swap with parent
-            declare
-	       Temp : Element_Type := Heap.Heap(Parent);
-            begin
-	       Heap.Heap(Parent) := Heap.Heap(Position);
-	       Heap.Heap(Position) := Temp;
-            end;
-
-            -- Move to parent's position
-            Position := Parent;
-         end;
-      end loop;
    end Insert;
 
-   procedure Insert(Item: in Element_Type;
-		    Heap: in out Max_Heap_Type) is
-      Position : Heap_Index := Heap.Size;
+   procedure Insert(Item: in Element_Type; Heap: in out Max_Heap_Type) is
    begin
       if Heap.Size = Heap.Heap'Last then
-         raise Program_Error with "Heap overflow: Max capacity reached.";
+         raise Heap_Overflow with "Max capacity reached.";
       end if;
 
-      -- Place the item at the end of the heap
-      Heap.Heap(Position) := Item;
+      Heap.Heap(Heap.Size) := Item;
+      Swim_Max(Heap, Heap.Size);
       Heap.Size := Heap.Size + 1;
+   end Insert;
 
-      -- Bubble up the item to maintain max-heap property
-      while Position > 0 loop
-         declare
-            Parent : constant Heap_Index := (Position - 1) / 2;
-         begin
-            if Heap.Heap(Parent) >= Heap.Heap(Position) then
-	       exit; -- Heap property is satisfied
-            end if;
+   function Del_Min(Heap: in out Min_Heap_Type) return Element_Type is
+      Result : Element_Type := Heap.Heap(0);
+   begin
+      if Heap.Size = 0 then
+         raise Heap_Underflow with "Cannot delete from an empty Min_Heap_Type.";
+      end if;
 
-            -- Swap with parent
-            declare
-	       Temp : Element_Type := Heap.Heap(Parent);
-            begin
-	       Heap.Heap(Parent) := Heap.Heap(Position);
-	       Heap.Heap(Position) := Temp;
-            end;
+      Heap.Heap(0) := Heap.Heap(Heap.Size - 1);
+      Heap.Size := Heap.Size - 1;
+      Sink_Min(Heap, 0);
 
-            -- Move to parent's position
-            Position := Parent;
-            end;
-	 end loop;
-      end Insert;
-   
-   function Del_Min(Heap: in out Min_Heap_Type) return Element_Type;
-   
-   function Del_Max(Heap: in out Max_Heap_Type) return Element_Type;
-   
+      return Result;
+   end Del_Min;
+
+   function Del_Max(Heap: in out Max_Heap_Type) return Element_Type is
+      Result : Element_Type := Heap.Heap(0);
+   begin
+      if Heap.Size = 0 then
+         raise Heap_Underflow with "Cannot delete from an empty Max_Heap_Type.";
+      end if;
+
+      Heap.Heap(0) := Heap.Heap(Heap.Size - 1);
+      Heap.Size := Heap.Size - 1;
+      Sink_Max(Heap, 0);
+
+      return Result;
+   end Del_Max;
+
 end Gusjo.Ds.Heap;
