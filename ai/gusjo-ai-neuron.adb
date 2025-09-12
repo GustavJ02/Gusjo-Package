@@ -4,6 +4,8 @@ with Gusjo;                             use Gusjo;
 with Gusjo.Math;                        use Gusjo.Math;
 with Gusjo.Math.Linalg;                 use Gusjo.Math.Linalg;
 
+with Ada.Unchecked_Deallocation;
+
 package body Gusjo.Ai.Neuron is
 
    procedure Free is new Ada.Unchecked_Deallocation(Neuron_Type, Neuron);
@@ -11,7 +13,7 @@ package body Gusjo.Ai.Neuron is
    procedure Initialize(N        : in out Neuron;
                         Inputs   : in     Positive;
                         Use_Bias : in     Boolean := true) is
-      Tmp : Matrix := Zeros(N, 1);
+      Tmp : Matrix := Zeros(N => N, M => 1);
    begin
       if N /= null then
          Free(N);
@@ -46,7 +48,7 @@ package body Gusjo.Ai.Neuron is
    function RelU(Z : in Float) return Float is
    begin
       if Z <= 0 then
-         return 0;
+         return 0.0;
       else
          return Z;
       end if;
