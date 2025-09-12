@@ -5,7 +5,7 @@ with Gusjo.Math.Linalg; use Gusjo.Math.Linalg;
 with Gusjo.Math;        use Gusjo.Math;
 with Gusjo.IO;          use Gusjo.Io;
 
-procedure Main is
+procedure Math is
    
    M     : Matrix;
    M_Inv : Matrix;
@@ -120,4 +120,4 @@ begin
    Delete(B);
    Delete(On);
    
-end Main;
+end Math;
