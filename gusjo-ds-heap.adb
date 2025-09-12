@@ -3,16 +3,16 @@ with Gusjo.Ds; use Gusjo.Ds;
 
 package body Gusjo.Ds.Heap is
 
-   procedure Swap(Heap: in out Heap_Type; Index1, Index2: in Heap_Index) is
+   procedure Swap(Heap: in out Heap_Type; Index1, Index2: in Integer) is
       Temp : Element_Type := Heap(Index1);
    begin
       Heap(Index1) := Heap(Index2);
       Heap(Index2) := Temp;
    end Swap;
 
-   procedure Sink_Min(Heap: in out Min_Heap_Type; Start: in Heap_Index) is
-      Current : Heap_Index := Start;
-      Child   : Heap_Index;
+   procedure Sink_Min(Heap: in out Min_Heap_Type; Start: in Integer) is
+      Current : Integer := Start;
+      Child   : Integer;
    begin
       loop
          Child := 2 * Current + 1;
@@ -23,14 +23,14 @@ package body Gusjo.Ds.Heap is
 
          exit when Child >= Heap.Size or else Heap.Heap(Current) <= Heap.Heap(Child);
 
-         Swap(Heap.Heap, Current, Child);
+         Swap(Heap.Heap.all, Current, Child);
          Current := Child;
       end loop;
    end Sink_Min;
 
-   procedure Sink_Max(Heap: in out Max_Heap_Type; Start: in Heap_Index) is
-      Current : Heap_Index := Start;
-      Child   : Heap_Index;
+   procedure Sink_Max(Heap: in out Max_Heap_Type; Start: in Integer) is
+      Current : Integer := Start;
+      Child   : Integer;
    begin
       loop
          Child := 2 * Current + 1; -- Left child index
@@ -41,35 +41,35 @@ package body Gusjo.Ds.Heap is
 
          exit when Child >= Heap.Size or else Heap.Heap(Current) >= Heap.Heap(Child);
 
-         Swap(Heap.Heap, Current, Child);
+         Swap(Heap.Heap.all, Current, Child);
          Current := Child;
       end loop;
    end Sink_Max;
 
-   procedure Swim_Min(Heap: in out Min_Heap_Type; Start: in Heap_Index) is
-      Current : Heap_Index := Start;
-      Parent  : Heap_Index;
+   procedure Swim_Min(Heap: in out Min_Heap_Type; Start: in Integer) is
+      Current : Integer := Start;
+      Parent  : Integer;
    begin
       while Current > 0 loop
          Parent := (Current - 1) / 2; -- Parent index
 
          exit when Heap.Heap(Current) >= Heap.Heap(Parent);
 
-         Swap(Heap.Heap, Current, Parent);
+         Swap(Heap.Heap.all, Current, Parent);
          Current := Parent;
       end loop;
    end Swim_Min;
 
-   procedure Swim_Max(Heap: in out Max_Heap_Type; Start: in Heap_Index) is
-      Current : Heap_Index := Start;
-      Parent  : Heap_Index;
+   procedure Swim_Max(Heap: in out Max_Heap_Type; Start: in Integer) is
+      Current : Integer := Start;
+      Parent  : Integer;
    begin
       while Current > 0 loop
          Parent := (Current - 1) / 2; -- Parent index
 
          exit when Heap.Heap(Current) <= Heap.Heap(Parent);
 
-         Swap(Heap.Heap, Current, Parent);
+         Swap(Heap.Heap.all, Current, Parent);
          Current := Parent;
       end loop;
    end Swim_Max;
@@ -123,5 +123,15 @@ package body Gusjo.Ds.Heap is
 
       return Result;
    end Del_Max;
+   
+   function Isempty(Heap: in Min_Heap_Type) return Boolean is
+   begin
+      return Heap.Size = 0;
+   end Isempty;
+   
+   function Isempty(Heap: in Max_Heap_Type) return Boolean is
+   begin
+      return Heap.Size = 0;
+   end Isempty;
 
 end Gusjo.Ds.Heap;

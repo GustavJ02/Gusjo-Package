@@ -1,6 +1,9 @@
 generic
    type Element_Type is private;
-function "<"(Left, Right: in Element_Type) return Boolean;
+   with function "<"(Left, Right: in Element_Type) return Boolean;
+   with function "<="(Left, Right: in Element_Type) return Boolean;
+   with function ">"(Left, Right: in Element_Type) return Boolean;
+   with function ">="(Left, Right: in Element_Type) return Boolean;
 package Gusjo.Ds.Heap is
    type Min_Heap_Type(Node_Max_Height : Positive) is private;
    type Max_Heap_Type(Node_Max_Height : Positive) is private;
@@ -15,21 +18,24 @@ package Gusjo.Ds.Heap is
    
    function Del_Max(Heap: in out Max_Heap_Type) return Element_Type;
    
+   function Isempty(Heap: in Min_Heap_Type) return Boolean;
+   
+   function Isempty(Heap: in Max_Heap_Type) return Boolean;
+   
 private
-   type Heap_Index is range 0 .. Integer(2**(Node_Max_Height + 1) - 2);
-   
-   type Heap_Type is array(Heap_Index) of Element_Type;
-   
-   type Min_Heap_Type is
+   type Heap_Type is array(Natural range <>) of Element_Type;
+   type Heap_Type_Ptr is access Heap_Type;
+
+   type Min_Heap_Type(Node_Max_Height : Positive) is
       record
-	 Heap: Heap_Type;
-	 Size: Integer := 0;
+         Heap : Heap_Type_Ptr := new Heap_Type(0 .. 2**Node_Max_Height - 1);
+         Size : Integer := 0;
       end record;
-   
-   type Max_Heap_Type is
+
+   type Max_Heap_Type(Node_Max_Height : Positive) is
       record
-	 Heap: Heap_Type;
-	 Size: Integer := 0;
+         Heap : Heap_Type_Ptr := new Heap_Type(0 .. 2**Node_Max_Height - 1);
+         Size : Integer := 0;
       end record;
 end Gusjo.Ds.Heap;
 
