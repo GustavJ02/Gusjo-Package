@@ -13,7 +13,7 @@ package body Gusjo.Ai.Neuron is
    procedure Initialize(N        : in out Neuron;
                         Inputs   : in     Positive;
                         Use_Bias : in     Boolean := true) is
-      Tmp : Matrix := Zeros(N => N, M => 1);
+      Tmp : Matrix := Zeros(Inputs, 1);
    begin
       if N /= null then
          Free(N);
