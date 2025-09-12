@@ -1,5 +1,6 @@
 with Ada.Text_IO; use Ada.Text_IO;
 with Gusjo.Math;  use Gusjo.Math;
+with Gusjo.io;    use Gusjo.io;
 With Gusjo;       use Gusjo;
 
 package Gusjo.Math.Optimization is
@@ -18,14 +19,14 @@ package Gusjo.Math.Optimization is
    
    function Linear_Model(Mode : in Mode_Type) return Model;
    
-   function Variable(Name : in My_String;
-		     Restriction : in Sign_Restriction := Free) return Variable;
+   function Create_Variable(Name : in My_String;
+		      Restriction : in Sign_Restriction := Free) return Variable;
    
-   function Variable(Name : in String;
-		     Restriction : in Sign_Restriction := Free) return Variable;
+   function Create_Variable(Name : in String;
+		      Restriction : in Sign_Restriction := Free) return Variable;
    
-   function Add_Variable(Model : in Model;
-			 Variable : in Variable);
+   procedure Add_Variable(Model : in Model;
+			   Variable : in Variable);
    
 private
    

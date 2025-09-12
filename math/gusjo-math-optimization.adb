@@ -3,27 +3,28 @@ package body Gusjo.Math.Optimization is
    function Linear_Model(Mode : in Mode_Type) return Model is
       Result: Model;
    begin
-      Resutl.Mode := Mode;
+      Result.Mode := Mode;
       return Result;
    end Linear_Model;
    
-   function Variable(Name : in My_String;
-		     Restriction : in Sign_Restriction := Free) return Variable is
+   function Create_Variable(Name : in My_String;
+		                      Restriction : in Sign_Restriction := Free) return Variable is
       Result : Variable;
    begin
       Result.Value       := 0.0;
       Result.Name        := Name;
       Result.Restriction := Restriction;
-   end Variable;
+      return result;
+   end Create_Variable;
    
-   function Variable(Name : in String;
-		     Restriction : in Sign_Restriction := Free) return Variable is
+   function Create_Variable(Name : in String;
+		                      Restriction : in Sign_Restriction := Free) return Variable is
    begin
-      return Variable(To_My_String(Name), Restriction);
-   end Variable;
+      return Create_Variable(To_My_String(Name), Restriction);
+   end Create_Variable;
    
    procedure Update_Variables(Variables : in out Variable_List_Ptr_Type;
-			      Variable  : in Variable) is
+			                     New_Variable  : in Variable) is
       Tmp : Variable_List_Type(1..Variables'Last) := Variables;
    begin
       Variables := new Variable_List_Type(1..(Variables'Last + 1));
