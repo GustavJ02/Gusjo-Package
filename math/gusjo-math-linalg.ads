@@ -99,28 +99,35 @@ package Gusjo.Math.Linalg is
    function Ones(N : in Positive) return Matrix;
    
    function Ones(N, M : in Positive) return Matrix;
+
+   procedure Fill_Random_Uniform (V : in out Column_Vector;
+                                  Low, High : in Float);
    
    ------------------ GETTERS ------------------
    
-   function Rows(Item : in Matrix) return Positive;
+   function Rows(Item : in Matrix)        return Positive;
    
-   function Cols(Item : in Matrix) return Positive;
+   function Cols(Item : in Matrix)        return Positive;
+
+   function Length (V : in Column_Vector) return Positive;
+   
+   function Length (V : in Row_Vector)    return Positive;
    
    ------------------ OPERATORS ------------------
    
-   function "*"(Left, Right : in Matrix) return Matrix;
+   function "*"(Left, Right : in Matrix)  return Matrix;
    
    function "*"(Left  : in Matrix;
-		Right : in Float) return Matrix;
+		Right : in Float)                   return Matrix;
    
    function "*"(Left  : in Float;
-		Right : in Matrix) return Matrix;
+		Right : in Matrix)                  return Matrix;
    
    function "*"(Left  : in Matrix;
-		Right : in Integer) return Matrix;
+		Right : in Integer)                 return Matrix;
    
    function "*"(Left  : in Integer;
-		Right : in Matrix) return Matrix;
+		Right : in Matrix)                  return Matrix;
    
    function Equals(Left, Right : in Matrix) return Boolean;
    
@@ -166,6 +173,10 @@ package Gusjo.Math.Linalg is
    
    function Dot_Product(Left  : in Column_Vector;
 			Right : in Column_Vector) return Float;
+
+   procedure Axpy (Y : in out Column_Vector;
+                   Alpha : in Float;
+                   X : in Column_Vector);
    
    ------------------ EXCEPTIONS ------------------
    

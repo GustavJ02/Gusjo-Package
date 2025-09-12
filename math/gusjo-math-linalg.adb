@@ -1,6 +1,7 @@
 with Ada.Integer_Text_IO;        use Ada.Integer_Text_IO;
 with Ada.Float_Text_IO;          use Ada.Float_Text_IO;
 with Ada.Unchecked_Deallocation;
+with Ada.Numerics.Float_Random;
 
 package body Gusjo.Math.Linalg is
    
@@ -291,6 +292,17 @@ package body Gusjo.Math.Linalg is
       end loop;
       return Result;
    end Identity_Matrix;
+
+   procedure Fill_Random_Uniform (V : in out Column_Vector; Low, High : in Float) is
+      Gen : Ada.Numerics.Float_Random.Generator;
+      Rng : constant Float := High - Low;
+   begin
+      Null_Check (V);
+      Ada.Numerics.Float_Random.Reset(Gen);
+      for I in V'Range(1) loop
+         V(I, 1) := Low + Rng * Ada.Numerics.Float_Random.Random(Gen);
+      end loop;
+   end Fill_Random_Uniform;
    
    ----------------------------------------------------------------------------------
    
@@ -347,6 +359,18 @@ package body Gusjo.Math.Linalg is
       Null_Check(Item);
       return Item'Last(1);
    end Rows;
+
+   function Length (V : in Column_Vector) return Positive is
+   begin
+      Null_Check (V);
+      return Positive (V'Length (1));
+   end Length;
+
+   function Length (V : in Row_Vector) return Positive is
+   begin
+      Null_Check (V);
+      return Positive (V'Length (2));
+   end Length;
    
    ----------------------------------------------------------------------------------
    
@@ -805,5 +829,20 @@ package body Gusjo.Math.Linalg is
       
       return Result;
    end Dot_Product;
+
+   procedure Axpy (Y     : in out Column_Vector;
+                   Alpha : in     Float;
+                   X     : in     Column_Vector) is
+   begin
+      Null_Check (Y);
+      Null_Check (X);
+      if Y'Length (1) /= X'Length (1) then
+         raise Dimension_Error with "Axpy: vector length mismatch";
+      end if;
+
+      for I in Y'Range (1) loop
+         Y (I, 1) := Y (I, 1) + Alpha * X (I, 1);
+      end loop;
+   end Axpy;
    
 end Gusjo.Math.Linalg;
