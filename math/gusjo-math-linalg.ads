@@ -103,6 +103,8 @@ package Gusjo.Math.Linalg is
    procedure Fill_Random_Uniform (V : in out Column_Vector;
                                   Low, High : in Float);
    
+   function Column2 (X0, X1 : Float) return Column_Vector;
+   
    ------------------ GETTERS ------------------
    
    function Rows(Item : in Matrix)        return Positive;

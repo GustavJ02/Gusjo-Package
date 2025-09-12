@@ -303,6 +303,18 @@ package body Gusjo.Math.Linalg is
          V(I, 1) := Low + Rng * Ada.Numerics.Float_Random.Random(Gen);
       end loop;
    end Fill_Random_Uniform;
+
+   function Column2 (X0, X1 : Float) return Column_Vector is
+      M : Matrix := Zeros (2, 1);
+      R : Column_Vector;
+   begin
+      M (1, 1) := X0;
+      M (2, 1) := X1;
+      R := To_Column_Vector (M);
+      Delete (M);
+      return R;
+   end Column2;
+
    
    ----------------------------------------------------------------------------------
    
@@ -820,11 +832,11 @@ package body Gusjo.Math.Linalg is
       Null_Check(Right);
       
       if Left'Length(1) /= Right'Length(1) then
-	 raise Dimension_Error with "Vector must contain 3 elements to calculate Cross-Product";
+	 raise Dimension_Error with "Dot_Product: length mismatch";
       end if;
       
       for I in Left'Range(1) loop
-	 Result := Result + Left(I, I) * Right(I, I);
+	 Result := Result + Left(I, 1) * Right(I, 1);
       end loop;
       
       return Result;
