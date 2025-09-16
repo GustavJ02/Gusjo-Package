@@ -6,6 +6,10 @@ With Gusjo;       use Gusjo;
 -- M, Range(2) => Cols
 
 package Gusjo.Math.Linalg is
+
+   ------------------ Types ------------------
+
+   type Indices_Array is array (Positive range <>) of Positive;
    
    ------------------ Get/Put Matrix ------------------
    
@@ -106,7 +110,9 @@ package Gusjo.Math.Linalg is
    procedure Fill_Random_Uniform(M           : in out Matrix;
                                  Low, High   : in     Float);
    
-   function Column2 (X0, X1 : Float) return Column_Vector;
+   function Column2(X0, X1 : Float) return Column_Vector;
+
+   function HStack_Columns(Vs : in array (Positive range <>) of Column_Vector) return Matrix;
    
    ------------------ GETTERS ------------------
    
@@ -119,6 +125,8 @@ package Gusjo.Math.Linalg is
    function Length(V : in Row_Vector)    return Positive;
 
    function Argmax(V : in Column_Vector) return Positive;
+
+   function Argmax_Columns(P : in Matrix) return Indices_Array;
 
    function CrossEntropy_OneHot(P, Y : in Column_Vector) return Float;
 

@@ -352,6 +352,40 @@ package body Gusjo.Math.Linalg is
       return R;
    end Column2;
 
+   function HStack_Columns(Vs : in array (Positive range <>) of Column_Vector) return Matrix is
+   begin
+      if Vs'Length = 0 then
+         raise Dimension_Error with "No vectors to stack";
+      end if;
+
+      -- Validate vectors and find common row count
+      Null_Check (Vs (Vs'First));
+      declare
+         Rows_Count : constant Positive := Vs (Vs'First)'Length (1);
+         B          : constant Positive := Vs'Length;
+         R          : Matrix           := Zeros (Rows_Count, B);
+         col        : Positive          := 1;
+      begin
+         -- Check all lengths match
+         for k in Vs'First .. Vs'Last loop
+            Null_Check (Vs (k));
+            if Vs (k)'Length (1) /= Rows_Count then
+               raise Dimension_Error with "HStack_Columns: all vectors must have same length";
+            end if;
+         end loop;
+
+         -- Copy each vector into column 'col'
+         for k in Vs'First .. Vs'Last loop
+            for i in 1 .. Rows_Count loop
+               R (i, col) := Vs (k) (i, 1);
+            end loop;
+            col := col + 1;
+         end loop;
+
+         return R;
+      end;
+   end HStack_Columns;
+
    
    ----------------------------------------------------------------------------------
    
@@ -433,6 +467,41 @@ package body Gusjo.Math.Linalg is
       end loop;
       return Best_I;
    end;
+
+   function Argmax_Columns(P : in Matrix) return Indices_Array is
+   begin
+      Null_Check (P);
+      if Cols (P) = 0 then
+         -- Return an empty index array
+         declare
+            Empty : Indices_Array (1 .. 0);
+         begin
+            return Empty;
+         end;
+      end if;
+
+      declare
+         B   : constant Positive      := Cols (P);
+         Res : Indices_Array (1 .. B);
+      begin
+         for j in 1 .. B loop
+            -- Initialize with first row of column j
+            declare
+               best_i : Positive := 1;
+               best_v : Float    := P (1, j);
+            begin
+               for i in 2 .. Rows (P) loop
+                  if P (i, j) > best_v then
+                     best_v := P (i, j);
+                     best_i := i;
+                  end if;
+               end loop;
+               Res(j) := best_i;
+            end;
+         end loop;
+         return Res;
+      end;
+   end Argmax_Columns;
 
    function CrossEntropy_OneHot(P, Y : Column_Vector) return Float is
       Eps : constant Float := 1.0E-7;
