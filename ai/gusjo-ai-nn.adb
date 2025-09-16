@@ -11,10 +11,10 @@ package body Gusjo.Ai.Nn is
 
    -- Deallocator for the layers array pointer
    procedure Free_Layers is new Ada.Unchecked_Deallocation
-     (Object => Layers_Array, Name => Layer_ptr_type);
+    (Object => Layers_Array, Name => Layer_ptr_type);
 
-   -- Free matrices/vectors owned by a single layer (not the array itself)
-   procedure Free_One_Layer (L : in out Dense_Layer) is
+   -- Free matrices/vectors owned by a single layer(not the array itself)
+   procedure Free_One_Layer(L : in out Dense_Layer) is
    begin
       Delete(L.W);
       Delete(L.B);
@@ -26,18 +26,18 @@ package body Gusjo.Ai.Nn is
    end Free_One_Layer;
 
    -- Create an empty model with chosen loss
-   procedure Create (M : in out Model; Loss : in Loss_Kind := CrossEntropy) is
+   procedure Create(M : in out Model; Loss : in Loss_Kind := CrossEntropy) is
    begin
       M.Ls   := null;
       M.Loss := Loss;
    end Create;
 
-   procedure Set_Loss (M : in out Model; Loss : in Loss_Kind) is
+   procedure Set_Loss(M : in out Model; Loss : in Loss_Kind) is
    begin
       M.Loss := Loss;
    end Set_Loss;
 
-   -- Append a new dense layer (W: Out×In, B: Out×1)
+   -- Append a new dense layer(W: Out×In, B: Out×1)
    procedure Add_Dense(M            : in out Model;
                        Inputs       : in     Positive;
                        Outputs      : in     Positive;
@@ -45,30 +45,30 @@ package body Gusjo.Ai.Nn is
                        Random_Bias  : in     Boolean := False) is
       Old_Ptr : Layer_ptr_type := M.Ls;
       Old_Len : constant Natural :=
-        (if Old_Ptr = null then 0 else Integer (Old_Ptr'Length));
-      New_Ptr : Layer_ptr_type := new Layers_Array (1 .. Old_Len + 1);
+       (if Old_Ptr = null then 0 else Integer(Old_Ptr'Length));
+      New_Ptr : Layer_ptr_type := new Layers_Array(1 .. Old_Len + 1);
       Limit : Float;
-      F_In  : constant Float := Float (Inputs);
-      F_Out : constant Float := Float (Outputs);
+      F_In  : constant Float := Float(Inputs);
+      F_Out : constant Float := Float(Outputs);
    begin
-      -- Copy existing layers (shallow copy; matrices remain owned by entries)
+      -- Copy existing layers(shallow copy; matrices remain owned by entries)
       for I in 1 .. Old_Len loop
-         New_Ptr (I) := Old_Ptr (I);
+         New_Ptr(I) := Old_Ptr(I);
       end loop;
 
       -- Initialize the new last layer
       declare
-         L : Dense_Layer renames New_Ptr (Old_Len + 1);
+         L : Dense_Layer renames New_Ptr(Old_Len + 1);
       begin
          L.W          := Zeros(Outputs, Inputs);
          L.B          := Zeros(Outputs, 1);
          L.Activation := Act;
 
-         -- Allocate gradient buffers now (we’ll fill them in Backward later)
+         -- Allocate gradient buffers now(we’ll fill them in Backward later)
          L.dW := Zeros(Outputs, Inputs);
          L.dB := Zeros(Outputs, 1);
 
-         -- Caches (Z, A, dA) remain null until Forward/Backward is implemented
+         -- Caches(Z, A, dA) remain null until Forward/Backward is implemented
 
          -- Set random values
 
@@ -76,7 +76,7 @@ package body Gusjo.Ai.Nn is
          when ReLU =>
             Limit := Sqrt(6.0 / F_In);
          when Sigmoid | Softmax=>
-            Limit := Sqrt(6.0 / (F_In + F_Out));
+            Limit := Sqrt(6.0 /(F_In + F_Out));
          end case;
 
          Fill_Random_Uniform(L.W, -Limit, Limit);
@@ -94,13 +94,13 @@ package body Gusjo.Ai.Nn is
    end Add_Dense;
 
    -- Free all layers (weights, biases, caches, grads) and the array object
-   procedure Clear (M : in out Model) is
+   procedure Clear(M : in out Model) is
    begin
       if M.Ls /= null then
          for I in M.Ls'Range loop
-            Free_One_Layer (M.Ls (I));
+            Free_One_Layer(M.Ls(I));
          end loop;
-         Free_Layers (M.Ls);
+         Free_Layers(M.Ls);
          M.Ls := null;
       end if;
       -- keep M.Loss as-is; or reset if you prefer:
@@ -108,7 +108,7 @@ package body Gusjo.Ai.Nn is
    end Clear;
 
    -- Stubs for Save/Load (we'll fill these later)
-   procedure Save (M    : in Model;
+   procedure Save(M    : in Model;
                    File : in File_Type) is
    begin
       -- Plan: write number of layers; per layer write dims, activation,
@@ -116,7 +116,7 @@ package body Gusjo.Ai.Nn is
       null;
    end Save;
 
-   procedure Load (M    : in out Model;
+   procedure Load(M    : in out Model;
                    File : in     File_Type) is
    begin
       -- Plan: read count; resize Ls; allocate W/B and read elements; set activation.
@@ -132,61 +132,186 @@ package body Gusjo.Ai.Nn is
       Tmp_L : Dense_Layer;
    begin
       for I in M.Ls'Range loop
-         Tmp_L := M.Ls (I);
+         Tmp_L := M.Ls(I);
 
          -- Z = W * A_prev + B
-         Zm := Tmp_L.W * To_Matrix (A_prev);
+         Zm := Tmp_L.W * To_Matrix(A_prev);
          Zm := Zm + Tmp_L.B;
 
          -- cache Z as a fresh column vector
-         Delete (Tmp_L.Z);
-         Tmp_L.Z := To_Column_Vector (Zm);
+         Delete(Tmp_L.Z);
+         Tmp_L.Z := To_Column_Vector(Zm);
 
          -- apply activation in-place on Z
          case Tmp_L.Activation is
             when Sigmoid =>
-               Map_In_Place (Tmp_L.Z, Sigmoid'Access);
+               Map_In_Place(Tmp_L.Z, Sigmoid'Access);
             when ReLU =>
-               Map_In_Place (Tmp_L.Z, ReLU'Access);
+               Map_In_Place(Tmp_L.Z, ReLU'Access);
             when Softmax =>
                Softmax_In_Place(Tmp_L.Z);
          end case;
 
          -- transfer ownership: A takes the buffer, Z is nulled to avoid double free
-         Delete (Tmp_L.A);    -- free old A (if any)
+         Delete(Tmp_L.A);    -- free old A (if any)
          Tmp_L.A := Tmp_L.Z;  -- A now owns the buffer
          Set_To_Null(Tmp_L.Z);     -- *** critical: break the alias ***
 
          -- next input is this layer's activation (alias, do not delete)
          A_prev := Tmp_L.A;
 
-         Delete (Zm);
+         Delete(Zm);
 
          -- write back updated layer
-         M.Ls (I) := Tmp_L;
+         M.Ls(I) := Tmp_L;
       end loop;
 
       -- return a fresh copy the caller owns and can Delete safely
       return Copy(A_prev);
    end Forward;
 
+   -- Elementwise derivative from activation **using A only** (no need for Z)
+   function Derivative_From_A(Act : Activation_Kind;
+                              A : Column_Vector) return Column_Vector is
+      D : Column_Vector := Copy(A);  -- start from A
+      -- local elementwise maps
+   begin
+      case Act is
+         when Sigmoid =>
+            Map_In_Place(D, Sigmoid_Derivative'Access);
+         when ReLU =>
+            Map_In_Place(D, Relu_Derivative'Access);
+         when Softmax =>
+            -- We avoid the full Jacobian; handle Softmax only paired with CE elsewhere.
+            raise Constraint_Error with "Derivative_From_A: Softmax derivative not supported here";
+      end case;
+      return D;
+   end Derivative_From_A;
+
+   -- Compute dZ for last layer under the chosen loss
+   --  * CrossEntropy + (Softmax or Sigmoid): dZ = A - Y
+   --  * Otherwise (e.g., MSE): dZ = (A - Y) ⊙ g'(A)
+   function Compute_dZ_Last(Loss : Loss_Kind;
+                            Act : Activation_Kind;
+                            A_Last, Y : Column_Vector) return Column_Vector is
+
+      Diff : Matrix := To_Matrix(A_Last) - To_Matrix(Y);
+      dZ   : Column_Vector := To_Column_Vector(Diff);
+   begin
+      Delete(Diff);
+
+      if Loss = CrossEntropy and then (Act = Softmax or else Act = Sigmoid) then
+         -- fast path: dZ = A - Y
+         return dZ;
+      end if;
+
+      -- General case (e.g., MSE): multiply by activation derivative
+      declare
+         Der : Column_Vector := Derivative_From_A(Act, A_Last);
+      begin
+         Hadamard_In_Place(dZ, Der);
+         Delete(Der);
+         return dZ;
+      end;
+   end Compute_dZ_Last;
+
+   -- Set gradients for a layer:
+   --    dW := dZ * A_prev^T   (Out×1 * 1×In = Out×In)
+   --    dB := dZ              (Out×1)
+   procedure Set_Grads(L : in out Dense_Layer;
+                       dZ, A_Prev : Column_Vector) is
+
+      A_T  : Matrix := Transpose(To_Matrix(A_Prev));
+      dZ_M : Matrix := To_Matrix(dZ);
+      dW   : Matrix := dZ_M * A_T;
+      dB   : Matrix := To_Matrix(dZ);
+   begin
+      Delete(L.dW);
+      L.dW := dW;
+      
+      Delete(L.dB);
+      L.dB := dB;
+
+      Delete(A_T);
+      Delete(dZ_M);
+   end Set_Grads;
+
+   -- Propagate gradient to previous activation:
+   --    dA_prev := W^T * dZ
+   function Propagate_dA_Prev(W  : in Matrix;
+                              dZ : in Column_Vector) return Column_Vector is
+
+      WT   : Matrix := Transpose(W);
+      dZ_M : Matrix := To_Matrix(dZ);
+      Prod : Matrix := WT * dZ_M;
+      Res  : Column_Vector := To_Column_Vector(Prod);
+   begin
+      Delete(WT);
+      Delete(dZ_M);
+      Delete(Prod);
+      return Res;
+   end Propagate_dA_Prev;
+
    procedure Backward(M : in out Model;
                       X : in     Column_Vector;
                       Y : in     Column_Vector) is
+      -- gradient wrt activation of the previous layer (flows backward)
+      dA_prev : Column_Vector;
 
+      -- last layer references
+      L_last  : Dense_Layer renames M.Ls(M.Ls'Last);
+      A_prev  : Column_Vector := (if M.Ls'Length = 1 then X else M.Ls(M.Ls'Last - 1).A);
+
+      -- last layer gradient wrt logits
+      dZ_last : Column_Vector;
    begin
-      
+      -- 1) Last layer: compute dZ
+      dZ_last := Compute_dZ_Last(M.Loss, L_last.Activation, L_last.A, Y);
+
+      -- 2) Last layer: dW/dB and dA_prev
+      Set_Grads(L_last, dZ_last, A_prev);
+      dA_prev := Propagate_dA_Prev(L_last.W, dZ_last);
+
+      Delete(dZ_last);
+
+      -- 3) Hidden layers(reverse order)
+      for idx in reverse M.Ls'First .. M.Ls'Last - 1 loop
+         declare
+            L      : Dense_Layer renames M.Ls(idx);
+            A_prevL: Column_Vector :=(if idx = M.Ls'First then X else M.Ls(idx - 1).A);
+            -- dZ = dA_prev ⊙ g'(A)
+            dZ     : Column_Vector := Copy(dA_prev);
+            Der    : Column_Vector := Derivative_From_A(L.Activation, L.A);
+         begin
+            Hadamard_In_Place(dZ, Der);
+            Delete(Der);
+
+            Set_Grads(L, dZ, A_prevL);
+
+            -- next dA_prev = W^T * dZ
+            declare
+               Next : Column_Vector := Propagate_dA_Prev(L.W, dZ);
+            begin
+               Delete(dA_prev);
+               dA_prev := Next;
+            end;
+
+            Delete(dZ);
+         end;
+      end loop;
+
+      Delete(dA_prev);
    end Backward;
 
-   procedure Step (M             : in out Model;
+   procedure Step(M             : in out Model;
                    Learning_Rate : in     Float := 0.01) is
       L                    : Dense_Layer;
       ScW, ScB, NewW, NewB : Matrix;
    begin
       for I in M.Ls'Range loop
          L := M.Ls(I);
-         ScW  := (-Learning_Rate) * L.dW;
-         ScB  := (-Learning_Rate) * L.dB;
+         ScW  :=(-Learning_Rate) * L.dW;
+         ScB  :=(-Learning_Rate) * L.dB;
          NewW := L.w + ScW;
          NewB := L.B + ScB;
          
@@ -198,6 +323,8 @@ package body Gusjo.Ai.Nn is
 
          Delete(ScW);
          Delete(ScB);
+
+         M.Ls(I) := L;
       end loop;
    end Step;
 end Gusjo.Ai.Nn;

@@ -31,4 +31,18 @@ package body Gusjo.Ai is
          return 0.0;
       end if;
    end ReLU;
+   
+   function Sigmoid_Derivative (Z : in Float) return Float is
+   begin
+      return Z * (1.0 - Z);
+   end Sigmoid_Derivative;
+   
+   function Relu_Derivative (Z : in Float) return Float is
+   begin
+      if Z > 0.0 then
+         return 1.0;
+      else
+         return 0.0;
+      end if;
+   end Relu_Derivative;
 end Gusjo.Ai;

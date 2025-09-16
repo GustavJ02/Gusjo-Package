@@ -7,7 +7,12 @@ package Gusjo.Ai is
 
    
    function Sigmoid(Z : in Float) return Float;
+   
    function ReLU(Z : in Float) return Float;
+
+   function Sigmoid_Derivative (Z : in Float) return Float;
+   
+   function Relu_Derivative (Z : in Float) return Float;
 
    -- Utilities (optional, handy for logs)
    function To_String (A : Activation_Kind) return String;

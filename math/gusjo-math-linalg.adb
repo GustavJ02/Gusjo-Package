@@ -292,14 +292,13 @@ package body Gusjo.Math.Linalg is
       Result : Matrix;
    begin
       Null_Check(Item);
-      Square_Check(Item);
       
-      Result := new Matrix_Type(Item'Range(1), Item'Range(2));
+      Result := new Matrix_Type(Item'Range(2), Item'Range(1));
       
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Result(J, I) := Item(I, J);
-	 end loop;
+	      for J in Item'Range(2) loop
+	         Result(J, I) := Item(I, J);
+   	   end loop;
       end loop;
       
       return Result;
@@ -467,7 +466,7 @@ package body Gusjo.Math.Linalg is
    begin
       Null_Check(Left);
       Null_Check(Right);
-      
+
       if Cols(Left) /= Rows(Right) then
 	 raise Dimension_Error with "Number of collumns in left matrix must equal number of rows in right matrix";
       end if;
