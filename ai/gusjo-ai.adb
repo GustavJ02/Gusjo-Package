@@ -6,6 +6,7 @@ package body Gusjo.Ai is
       case A is
          when Sigmoid => return "sigmoid";
          when ReLU    => return "relu";
+         when Softmax => return "softmax";
       end case;
    end;
 

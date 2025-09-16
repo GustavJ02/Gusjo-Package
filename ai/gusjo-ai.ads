@@ -1,6 +1,6 @@
 package Gusjo.Ai is
    -- Activations
-   type Activation_Kind is (Sigmoid, ReLU);
+   type Activation_Kind is (Sigmoid, ReLU, Softmax);
 
    -- Losses
    type Loss_Kind is (MSE, CrossEntropy);
