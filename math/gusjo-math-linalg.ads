@@ -100,8 +100,11 @@ package Gusjo.Math.Linalg is
    
    function Ones(N, M : in Positive) return Matrix;
 
-   procedure Fill_Random_Uniform (V : in out Column_Vector;
-                                  Low, High : in Float);
+   procedure Fill_Random_Uniform(V           : in out Column_Vector;
+                                 Low, High   : in     Float);
+
+   procedure Fill_Random_Uniform(M           : in out Matrix;
+                                 Low, High   : in     Float);
    
    function Column2 (X0, X1 : Float) return Column_Vector;
    
@@ -132,6 +135,11 @@ package Gusjo.Math.Linalg is
 		Right : in Matrix)                  return Matrix;
 
    function "+"(left, right : in Matrix)  return Matrix;
+
+   function "-"(Left, Right : in Matrix)  return Matrix;
+
+   procedure Hadamard_In_Place (Y : in out Column_Vector;
+                                X : in     Column_Vector);
    
    function Equals(Left, Right : in Matrix) return Boolean;
    
@@ -142,10 +150,10 @@ package Gusjo.Math.Linalg is
    function Transpose(Item : in Matrix) return Matrix;
    
    procedure Combine_Vertically(Top    : in out Matrix;
-				Bottom : in Matrix);
+				                    Bottom : in Matrix);
    
    procedure Combine_Horizontally(Left  : in out Matrix;
-				  Right : in Matrix);
+				                      Right : in Matrix);
    
    ------------------ DELETE ------------------
    
@@ -154,6 +162,12 @@ package Gusjo.Math.Linalg is
    procedure Delete(Item : in out Row_Vector);
    
    procedure Delete(Item : in out Column_Vector);
+
+   procedure Set_To_Null(Item : in out Matrix);
+   
+   procedure Set_To_Null(Item : in out Row_Vector);
+   
+   procedure Set_To_Null(Item : in out Column_Vector);
    
    ------------------ CONVERTERS ------------------
    
@@ -176,7 +190,7 @@ package Gusjo.Math.Linalg is
    function Cross_Product(Left, Right : in Column_Vector) return Column_Vector;
    
    function Dot_Product(Left  : in Column_Vector;
-			Right : in Column_Vector) return Float;
+			               Right : in Column_Vector) return Float;
 
    procedure Axpy (Y : in out Column_Vector;
                    Alpha : in Float;
@@ -184,6 +198,8 @@ package Gusjo.Math.Linalg is
 
    procedure Map_In_Place(V : in out Column_Vector;
                           F : not null access function (x : Float) return Float);
+
+   procedure Softmax_In_Place(V : in out Column_Vector);
    
    ------------------ EXCEPTIONS ------------------
    

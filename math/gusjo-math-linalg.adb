@@ -1,7 +1,10 @@
 with Ada.Integer_Text_IO;        use Ada.Integer_Text_IO;
 with Ada.Float_Text_IO;          use Ada.Float_Text_IO;
+
 with Ada.Unchecked_Deallocation;
 with Ada.Numerics.Float_Random;
+
+with Ada.Numerics.Elementary_Functions;   use Ada.Numerics.Elementary_Functions;
 
 package body Gusjo.Math.Linalg is
    
@@ -13,18 +16,39 @@ package body Gusjo.Math.Linalg is
    
    procedure Delete(Item : in out Matrix) is
    begin
-      Free(Item);
+      if item /= null then
+         Free(Item);
+      end if;
    end Delete;
    
    procedure Delete(Item : in out Row_Vector) is
    begin
-      Free(Item);
+      if item /= null then
+         Free(Item);
+      end if;
    end Delete;
    
    procedure Delete(Item : in out Column_Vector) is
    begin
-      Free(Item);
+      if item /= null then
+         Free(Item);
+      end if;
    end Delete;
+
+   procedure Set_To_Null(Item : in out Matrix) is
+   begin
+      Item := null;
+   end Set_To_Null;
+   
+   procedure Set_To_Null(Item : in out Row_Vector) is
+   begin
+      Item := null;
+   end Set_To_Null;
+   
+   procedure Set_To_Null(Item : in out Column_Vector) is
+   begin
+      Item := null;
+   end Set_To_Null;
    
    procedure Null_Check(Item : in Matrix) is
    begin
@@ -293,25 +317,39 @@ package body Gusjo.Math.Linalg is
       return Result;
    end Identity_Matrix;
 
-   procedure Fill_Random_Uniform (V : in out Column_Vector; Low, High : in Float) is
+   procedure Fill_Random_Uniform(V : in out Column_Vector; Low, High : in Float) is
       Gen : Ada.Numerics.Float_Random.Generator;
       Rng : constant Float := High - Low;
    begin
-      Null_Check (V);
+      Null_Check(V);
       Ada.Numerics.Float_Random.Reset(Gen);
       for I in V'Range(1) loop
          V(I, 1) := Low + Rng * Ada.Numerics.Float_Random.Random(Gen);
       end loop;
    end Fill_Random_Uniform;
 
-   function Column2 (X0, X1 : Float) return Column_Vector is
-      M : Matrix := Zeros (2, 1);
+   procedure Fill_Random_Uniform(M           : in out Matrix;
+                                 Low, High   : in     Float) is
+      Gen : Ada.Numerics.Float_Random.Generator;
+      Rng : constant Float := High - Low;
+   begin
+      Null_Check(M);
+      Ada.Numerics.Float_Random.Reset(Gen);
+      for I in M'Range(1) loop
+         for II in M'Range(2) loop
+            M(I, II) := Low + Rng * Ada.Numerics.Float_Random.Random(Gen);
+         end loop;
+      end loop;
+   end Fill_Random_Uniform;
+
+   function Column2(X0, X1 : Float) return Column_Vector is
+      M : Matrix := Zeros(2, 1);
       R : Column_Vector;
    begin
-      M (1, 1) := X0;
-      M (2, 1) := X1;
-      R := To_Column_Vector (M);
-      Delete (M);
+      M(1, 1) := X0;
+      M(2, 1) := X1;
+      R := To_Column_Vector(M);
+      Delete(M);
       return R;
    end Column2;
 
@@ -372,16 +410,16 @@ package body Gusjo.Math.Linalg is
       return Item'Last(1);
    end Rows;
 
-   function Length (V : in Column_Vector) return Positive is
+   function Length(V : in Column_Vector) return Positive is
    begin
-      Null_Check (V);
-      return Positive (V'Length (1));
+      Null_Check(V);
+      return Positive(V'Length(1));
    end Length;
 
-   function Length (V : in Row_Vector) return Positive is
+   function Length(V : in Row_Vector) return Positive is
    begin
-      Null_Check (V);
-      return Positive (V'Length (2));
+      Null_Check(V);
+      return Positive(V'Length(2));
    end Length;
    
    ----------------------------------------------------------------------------------
@@ -523,6 +561,19 @@ package body Gusjo.Math.Linalg is
       
       return Result;
    end "-";
+
+   procedure Hadamard_In_Place (Y : in out Column_Vector;
+                                X : in     Column_Vector) is
+   begin
+      Null_Check(Y);
+      Null_Check(X);
+      if Y'Length(1) /= X'Length(1) then
+         raise Dimension_Error with "Hadamard_In_Place: length mismatch";
+      end if;
+      for I in Y'Range(1) loop
+         Y(I, 1) := Y(I, 1) * X(I, 1);
+      end loop;
+   end Hadamard_In_Place;
    
    function Equals(Left, Right : in Matrix) return Boolean is
    begin
@@ -627,7 +678,7 @@ package body Gusjo.Math.Linalg is
       
       function OddEven(I, J : in Integer) return Float is
       begin
-   	 if (I + J) mod 2 = 0 then
+   	 if(I + J) mod 2 = 0 then
    	    return 1.0;
    	 else
    	    return-1.0;
@@ -842,28 +893,70 @@ package body Gusjo.Math.Linalg is
       return Result;
    end Dot_Product;
 
-   procedure Axpy (Y     : in out Column_Vector;
-                   Alpha : in     Float;
-                   X     : in     Column_Vector) is
+   procedure Axpy(Y     : in out Column_Vector;
+                  Alpha : in     Float;
+                  X     : in     Column_Vector) is
    begin
       Null_Check(Y);
       Null_Check(X);
-      if Y'Length (1) /= X'Length (1) then
+      if Y'Length(1) /= X'Length(1) then
          raise Dimension_Error with "Axpy: vector length mismatch";
       end if;
 
-      for I in Y'Range (1) loop
-         Y (I, 1) := Y (I, 1) + Alpha * X (I, 1);
+      for I in Y'Range(1) loop
+         Y(I, 1) := Y(I, 1) + Alpha * X(I, 1);
       end loop;
    end Axpy;
 
    procedure Map_In_Place(V : in out Column_Vector;
-                          F : not null access function (x : Float) return Float) is
+                          F : not null access function(x : Float) return Float) is
    begin
       Null_Check(V);
       for I in V'Range(1) loop
          V(I, 1) := F(V(I, 1));
       end loop;
    end Map_In_Place;
+
+   procedure Softmax_In_Place(V : in out Column_Vector) is
+      MaxV : Float;
+      SumE : Float := 0.0;
+   begin
+      Null_Check(V);
+
+      MaxV := V(1, 1);
+
+      -- 1) find max
+      for i in V'Range(1) loop
+         if V(i, 1) > MaxV then
+            MaxV := V(i, 1);
+         end if;
+      end loop;
+
+      -- 2) subtract max and exp
+      for i in V'Range(1) loop
+         V(i, 1) := Exp(V(i, 1) - MaxV);
+      end loop;
+
+      -- 3) sum
+      for i in V'Range(1) loop
+         SumE := SumE + V(i, 1);
+      end loop;
+
+      -- 4) normalize (guard tiny sums just in case)
+      if SumE <= 0.0 then
+         -- fallback: uniform distribution
+         declare
+            n : constant Float := Float(V'Length(1));
+         begin
+            for i in V'Range(1) loop
+               V(i, 1) := 1.0 / n;
+            end loop;
+         end;
+      else
+         for i in V'Range(1) loop
+            V(i, 1) := V(i, 1) / SumE;
+         end loop;
+      end if;
+   end Softmax_In_Place;
    
 end Gusjo.Math.Linalg;
