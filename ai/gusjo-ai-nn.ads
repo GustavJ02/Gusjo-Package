@@ -9,10 +9,11 @@ package Gusjo.Ai.Nn is
    procedure Create(M      : in out Model;
                     Loss   : in     Loss_Kind := CrossEntropy);
 
-   procedure Add_Dense(M         : in out Model;
-                       Inputs    : in     Positive;
-                       Outputs   : in     Positive;
-                       Act       : in     Activation_Kind := ReLU);
+   procedure Add_Dense(M            : in out Model;
+                       Inputs       : in     Positive;
+                       Outputs      : in     Positive;
+                       Act          : in     Activation_Kind := ReLU;
+                       Random_Bias  : in     Boolean := False);
 
    procedure Clear(M : in out Model);
 
@@ -27,6 +28,13 @@ package Gusjo.Ai.Nn is
 
    function Forward(M : in out  Model;
                     X : in      Column_Vector) return Column_Vector;
+
+   procedure Backward(M : in out Model;
+                      X : in     Column_Vector;
+                      Y : in     Column_Vector);
+
+   procedure Step (M             : in out Model;
+                   Learning_Rate : in     Float := 0.01);
 
 private
 
