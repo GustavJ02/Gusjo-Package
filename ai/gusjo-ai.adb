@@ -32,12 +32,13 @@ package body Gusjo.Ai is
       end if;
    end ReLU;
    
-   function Sigmoid_Derivative (Z : in Float) return Float is
+   function Sigmoid_Derivative(Z : in Float) return Float is
+      A : constant Float := 1.0 / (1.0 + Exp(-Z));
    begin
-      return Z * (1.0 - Z);
+      return A * (1.0 - A);
    end Sigmoid_Derivative;
    
-   function Relu_Derivative (Z : in Float) return Float is
+   function Relu_Derivative(Z : in Float) return Float is
    begin
       if Z > 0.0 then
          return 1.0;
@@ -45,4 +46,5 @@ package body Gusjo.Ai is
          return 0.0;
       end if;
    end Relu_Derivative;
+   
 end Gusjo.Ai;

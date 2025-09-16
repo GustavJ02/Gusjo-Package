@@ -303,13 +303,27 @@ package body Gusjo.Ai.Nn is
       Delete(dA_prev);
    end Backward;
 
-   procedure Step(M             : in out Model;
-                   Learning_Rate : in     Float := 0.01) is
+   procedure Step(M                 : in out Model;
+                   Learning_Rate    : in     Float := 0.01;
+                   Clip_Threshold   : in     Float := 0.0) is
+
       L                    : Dense_Layer;
       ScW, ScB, NewW, NewB : Matrix;
+      Norm, NormW, NormB, Scale : Float;
    begin
       for I in M.Ls'Range loop
          L := M.Ls(I);
+
+         NormW := L2_Norm(L.dW);
+         NormB := L2_Norm(L.dB);
+         Norm  := Sqrt(NormW ** 2 + NormB ** 2);
+         Scale := Clip_Threshold / Norm;
+
+         if (Clip_Threshold > 0.0) and then Norm > Clip_Threshold then
+            Scale_In_Place(L.dW, Scale);
+            Scale_In_Place(L.dB, Scale);
+         end if;
+
          ScW  :=(-Learning_Rate) * L.dW;
          ScB  :=(-Learning_Rate) * L.dB;
          NewW := L.w + ScW;
@@ -327,4 +341,129 @@ package body Gusjo.Ai.Nn is
          M.Ls(I) := L;
       end loop;
    end Step;
+
+   procedure Train_Step(M : in out Model; X, Y : Column_Vector; LR : Float := 0.01) is
+      P : Column_Vector := Forward(M, X);
+   begin
+      Delete(P);               -- caches already stored in model
+      Backward(M, X, Y);
+      Step(M, Learning_Rate => LR);
+   end Train_Step;
+
+   function Forward_Batch(M : in out Model;
+                           X : in     Matrix) return Matrix is
+      A_prev : Matrix := X;  -- alias; do not Delete(X)
+   begin
+      if M.Ls = null or else M.Ls'Length = 0 then
+         raise Constraint_Error with "Forward_Batch: model has no layers";
+      end if;
+
+      for I in M.Ls'Range loop
+         declare
+            L : Dense_Layer renames M.Ls (I);
+            Z : Matrix := L.W * A_prev;                 -- (Out×In)*(In×B) = (Out×B)
+         begin
+            Broadcast_Add (Z, L.B);                     -- + bias columnwise
+
+            case L.Activation is
+               when ReLU    => Map_In_Place (Z, ReLU'Access);
+               when Sigmoid => Map_In_Place (Z, Sigmoid'Access);
+               when Softmax => Softmax_Stable (Z);      -- column-wise
+            end case;
+
+            -- cache activations for this layer
+            Delete (L.A_M);
+            L.A_M := Z;                                 -- model owns Z
+
+            if I = M.Ls'Last then
+               return Copy (Z);                         -- caller owns the copy
+            else
+               A_prev := L.A_M;                         -- next layer input
+            end if;
+         end;
+      end loop;
+
+      raise Program_Error with "Forward_Batch: unexpected fallthrough";
+   end Forward_Batch;
+
+   procedure Backward_Batch (M    : in out Model;
+                          X, Y : in     Matrix) is
+      -- ensure caches are current
+      P_Tmp : Matrix := Forward_Batch (M, X);  -- Out×B
+      B  : constant Float := Float (Cols (X));  -- batch size
+
+      -- last layer shorthand
+      L_last : Dense_Layer renames M.Ls (M.Ls'Last);
+
+      -- gradient wrt logits/activations for current layer (matrix)
+      dZ : Matrix;
+   begin
+      Delete (P_Tmp);  -- we only needed caches in the model
+
+      -- --- Last layer ---
+      -- CE + Softmax/Sigmoid ⇒ dZ = A_L - Y
+      dZ := L_last.A_M - Y;
+
+      declare
+         A_prev : Matrix := (if M.Ls'Length = 1 then X else M.Ls(M.Ls'Last - 1).A_M);
+         dW     : Matrix := (dZ * Transpose(A_prev)) * (1.0 / B);  -- Out×In
+         dB     : Matrix := Mean_Columns(dZ);                       -- Out×1
+         dA_prev: Matrix := Transpose(L_last.W) * dZ;               -- In×B
+      begin
+         Delete(L_last.dW);
+         L_last.dW := dW;
+         
+         Delete(L_last.dB);
+         L_last.dB := dB;
+
+         -- --- Hidden layers (reverse) ---
+         for idx in reverse M.Ls'First .. M.Ls'Last - 1 loop
+            declare
+               L      : Dense_Layer renames M.Ls(idx);
+               A_prevL: Matrix := (if idx = M.Ls'First then X else M.Ls(idx - 1).A_M);
+
+               -- dZ = dA_prev ⊙ g'(A_l)
+               dZ_H : Matrix := Copy(dA_prev);   -- start from dA_prev
+               Der  : Matrix := Copy(L.A_M);     -- copy of A_l to turn into derivative
+            begin
+               case L.Activation is
+                  when Sigmoid => Map_In_Place(Der, Sigmoid_Derivative'Access);
+                  when ReLU    => Map_In_Place(Der, Relu_Derivative'Access);
+                  when Softmax =>
+                     raise Constraint_Error with "Softmax should only be the final layer";
+               end case;
+
+               Hadamard_In_Place(dZ_H, Der);     -- dZ_H *= Der
+               Delete(Der);
+
+               -- grads for this layer
+               declare
+                  dW_L : Matrix := (dZ_H * Transpose(A_prevL)) * (1.0 / B);
+                  dB_L : Matrix := Mean_Columns(dZ_H);
+               begin
+                  Delete(L.dW);
+                  L.dW := dW_L;
+                  
+                  Delete(L.dB);
+                  L.dB := dB_L;
+               end;
+
+               -- propagate to next (earlier) layer
+               declare
+                  Next_dA : Matrix := Transpose(L.W) * dZ_H;
+               begin
+                  Delete(dA_prev);
+                  dA_prev := Next_dA;
+               end;
+
+               Delete(dZ_H);
+            end;
+         end loop;
+
+         Delete(dA_prev);
+      end;
+
+      Delete(dZ);
+   end Backward_Batch;
+
 end Gusjo.Ai.Nn;

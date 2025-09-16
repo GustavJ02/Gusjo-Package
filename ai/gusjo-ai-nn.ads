@@ -34,8 +34,20 @@ package Gusjo.Ai.Nn is
                       Y : in     Column_Vector);
 
    procedure Step (M             : in out Model;
-                   Learning_Rate : in     Float := 0.01);
+                   Learning_Rate : in     Float := 0.01;
+                   Clip_Threshold   : in     Float := 0.0);
 
+   procedure Train_Step (M    : in out Model;
+                         X, Y : in     Column_Vector;
+                         LR   : in     Float := 0.01);
+
+   -- X: (In×B), returns P: (Out×B)
+   function Forward_Batch (M : in out Model;
+                           X : in     Matrix) return Matrix;
+
+   -- Y: one-hot (Out×B)
+   procedure Backward_Batch (M    : in out Model;
+                             X, Y : in     Matrix);
 private
 
    type Dense_Layer is
@@ -45,6 +57,7 @@ private
          Z, A        : Column_Vector;
          dW, dB      : Matrix;
          dA          : Column_Vector;
+         A_M, Z_M    : Matrix;
       end record;
 
    type Layers_Array is 
