@@ -46,8 +46,9 @@ package body Gusjo.Ai.Neuron is
    function Activate(A : Activation_Kind; Z : Float) return Float is
    begin
       case A is
-         when Sigmoid => return Sigmoid (Z);
-         when ReLU    => return ReLU (Z);
+         when Sigmoid => return Sigmoid(Z);
+         when ReLU    => return ReLU(Z);
+         when Softmax => raise Constraint_Error with "Unable to use Softmax for single neuron.";
       end case;
    end;
 
@@ -56,11 +57,12 @@ package body Gusjo.Ai.Neuron is
       case A is
          when Sigmoid => return Y * (1.0 - Y);
          when ReLU    =>
-         if Z > 0.0 then 
-            return 1.0;
-         else 
-            return 0.0;
-         end if;
+            if Z > 0.0 then 
+               return 1.0;
+            else 
+               return 0.0;
+            end if;
+         when Softmax => raise Constraint_Error with "Unable to use Softmax for single neuron.";
       end case;
    end;
 
