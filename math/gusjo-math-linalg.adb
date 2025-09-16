@@ -448,6 +448,34 @@ package body Gusjo.Math.Linalg is
       end loop;
       return 0.0; -- if Y isn't one-hot, you can extend to full sum
    end;
+
+   function CrossEntropy_OneHot(P, Y : in Matrix) return Float is
+      B    : constant Float := Float(Cols(P));  -- batch size
+      Loss : Float := 0.0;
+   begin
+      Null_Check(P);
+      Null_Check(Y);
+
+      if Rows(P) /= Rows(Y) or else Cols(P) /= Cols(Y) then
+         raise Dimension_Error with "P and Y must have same shape in CrossEntropy_OneHot";
+      end if;
+
+      for j in 1 .. Cols(P) loop
+         for i in 1 .. Rows(P) loop
+            if Y(i, j) = 1.0 then
+               -- clip to avoid log(0)
+               declare
+                  p_clipped : constant Float :=
+                  Float'Max(1.0E-7, Float'Min(1.0 - 1.0E-7, P(i, j)));
+               begin
+                  Loss := Loss - Log(p_clipped);
+               end;
+            end if;
+         end loop;
+      end loop;
+
+      return Loss / B;
+   end CrossEntropy_OneHot;
    
    ----------------------------------------------------------------------------------
    

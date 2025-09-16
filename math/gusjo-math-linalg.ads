@@ -121,6 +121,8 @@ package Gusjo.Math.Linalg is
    function Argmax(V : in Column_Vector) return Positive;
 
    function CrossEntropy_OneHot(P, Y : in Column_Vector) return Float;
+
+   function CrossEntropy_OneHot(P, Y : in Matrix) return Float;
    
    ------------------ OPERATORS ------------------
    
@@ -202,8 +204,8 @@ package Gusjo.Math.Linalg is
 
    procedure Softmax_In_Place(V : in out Column_Vector);
 
-   procedure Hadamard_In_Place (Y : in out Column_Vector;
-                                X : in     Column_Vector);
+   procedure Hadamard_In_Place(Y : in out Column_Vector;
+                               X : in     Column_Vector);
 
    ------------------ Matrix OPERATORS ------------------
 
