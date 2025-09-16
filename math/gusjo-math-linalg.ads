@@ -111,9 +111,9 @@ package Gusjo.Math.Linalg is
    
    function Cols(Item : in Matrix)        return Positive;
 
-   function Length (V : in Column_Vector) return Positive;
+   function Length(V : in Column_Vector) return Positive;
    
-   function Length (V : in Row_Vector)    return Positive;
+   function Length(V : in Row_Vector)    return Positive;
    
    ------------------ OPERATORS ------------------
    
@@ -130,6 +130,8 @@ package Gusjo.Math.Linalg is
    
    function "*"(Left  : in Integer;
 		Right : in Matrix)                  return Matrix;
+
+   function "+"(left, right : in Matrix)  return Matrix;
    
    function Equals(Left, Right : in Matrix) return Boolean;
    
@@ -179,6 +181,9 @@ package Gusjo.Math.Linalg is
    procedure Axpy (Y : in out Column_Vector;
                    Alpha : in Float;
                    X : in Column_Vector);
+
+   procedure Map_In_Place(V : in out Column_Vector;
+                          F : not null access function (x : Float) return Float);
    
    ------------------ EXCEPTIONS ------------------
    

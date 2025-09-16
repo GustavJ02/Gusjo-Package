@@ -1,4 +1,3 @@
-with Ada.Numerics.Elementary_Functions; use Ada.Numerics.Elementary_Functions;
 with Ada.Numerics.Float_Random;
 with Gusjo;                             use Gusjo;
 with Gusjo.Math;                        use Gusjo.Math;
@@ -43,20 +42,6 @@ package body Gusjo.Ai.Neuron is
          N.B := 0.0;
       end if;
    end Init_Uniform;
-
-   function Sigmoid(Z : in Float) return Float is
-   begin
-      return 1.0 / (1.0 + Exp(-Z));
-   end Sigmoid;
-
-   function ReLU(Z : in Float) return Float is
-   begin
-      if Z > 0 then
-         return Z;
-      else
-         return 0.0;
-      end if;
-   end ReLU;
 
    function Activate(A : Activation_Kind; Z : Float) return Float is
    begin

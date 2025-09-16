@@ -5,6 +5,10 @@ package Gusjo.Ai is
    -- Losses
    type Loss_Kind is (MSE, CrossEntropy);
 
+   
+   function Sigmoid(Z : in Float) return Float;
+   function ReLU(Z : in Float) return Float;
+
    -- Utilities (optional, handy for logs)
    function To_String (A : Activation_Kind) return String;
    function To_String (L : Loss_Kind)       return String;

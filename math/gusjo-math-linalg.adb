@@ -846,8 +846,8 @@ package body Gusjo.Math.Linalg is
                    Alpha : in     Float;
                    X     : in     Column_Vector) is
    begin
-      Null_Check (Y);
-      Null_Check (X);
+      Null_Check(Y);
+      Null_Check(X);
       if Y'Length (1) /= X'Length (1) then
          raise Dimension_Error with "Axpy: vector length mismatch";
       end if;
@@ -856,5 +856,14 @@ package body Gusjo.Math.Linalg is
          Y (I, 1) := Y (I, 1) + Alpha * X (I, 1);
       end loop;
    end Axpy;
+
+   procedure Map_In_Place(V : in out Column_Vector;
+                          F : not null access function (x : Float) return Float) is
+   begin
+      Null_Check(V);
+      for I in V'Range(1) loop
+         V(I, 1) := F(V(I, 1));
+      end loop;
+   end Map_In_Place;
    
 end Gusjo.Math.Linalg;
