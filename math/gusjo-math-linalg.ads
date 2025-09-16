@@ -117,6 +117,10 @@ package Gusjo.Math.Linalg is
    function Length(V : in Column_Vector) return Positive;
    
    function Length(V : in Row_Vector)    return Positive;
+
+   function Argmax(V : in Column_Vector) return Positive;
+
+   function CrossEntropy_OneHot(P, Y : in Column_Vector) return Float;
    
    ------------------ OPERATORS ------------------
    
@@ -137,9 +141,6 @@ package Gusjo.Math.Linalg is
    function "+"(left, right : in Matrix)  return Matrix;
 
    function "-"(Left, Right : in Matrix)  return Matrix;
-
-   procedure Hadamard_In_Place (Y : in out Column_Vector;
-                                X : in     Column_Vector);
    
    function Equals(Left, Right : in Matrix) return Boolean;
    
@@ -200,6 +201,33 @@ package Gusjo.Math.Linalg is
                           F : not null access function (x : Float) return Float);
 
    procedure Softmax_In_Place(V : in out Column_Vector);
+
+   procedure Hadamard_In_Place (Y : in out Column_Vector;
+                                X : in     Column_Vector);
+
+   ------------------ Matrix OPERATORS ------------------
+
+   function L2_Norm(M : in Matrix) return Float;
+
+   procedure Scale_In_Place (M     : in out Matrix;
+                             Alpha : in     Float);
+
+   procedure Broadcast_Add (M : in out Matrix;
+                            B : in     Matrix);
+
+   function Colwise_Max (M : Matrix) return Matrix;
+
+   function Colwise_Sum (M : Matrix) return Matrix;
+
+   procedure Softmax_Stable (Z : in out Matrix);
+
+   function Mean_Columns (M : Matrix) return Matrix;
+
+   procedure Map_In_Place(M : in out Matrix;
+                          F : not null access function (x : Float) return Float);
+
+   procedure Hadamard_In_Place(Y : in out Matrix;
+                               X : in     Matrix);
    
    ------------------ EXCEPTIONS ------------------
    

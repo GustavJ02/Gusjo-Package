@@ -420,6 +420,34 @@ package body Gusjo.Math.Linalg is
       Null_Check(V);
       return Positive(V'Length(2));
    end Length;
+
+   function Argmax(V : Column_Vector) return Positive is
+      Best_I : Positive := V'First(1);
+      Best_V : Float    := V(Best_I, 1);
+   begin
+      for I in V'First(1) + 1 .. V'Last(1) loop
+         if V(I, 1) > Best_V then
+            Best_V := V(I, 1);
+            Best_I := I;
+         end if;
+      end loop;
+      return Best_I;
+   end;
+
+   function CrossEntropy_OneHot(P, Y : Column_Vector) return Float is
+      Eps : constant Float := 1.0E-7;
+      CE  : Float := 0.0;
+      Pi  : Float;
+   begin
+      for I in P'Range(1) loop
+         if Y(I, 1) = 1.0 then
+            Pi := Float'Max(Eps, Float'Min (1.0 - Eps, P (I, 1)));
+            CE := -Log(Pi);
+            return CE;
+         end if;
+      end loop;
+      return 0.0; -- if Y isn't one-hot, you can extend to full sum
+   end;
    
    ----------------------------------------------------------------------------------
    
@@ -560,19 +588,6 @@ package body Gusjo.Math.Linalg is
       
       return Result;
    end "-";
-
-   procedure Hadamard_In_Place (Y : in out Column_Vector;
-                                X : in     Column_Vector) is
-   begin
-      Null_Check(Y);
-      Null_Check(X);
-      if Y'Length(1) /= X'Length(1) then
-         raise Dimension_Error with "Hadamard_In_Place: length mismatch";
-      end if;
-      for I in Y'Range(1) loop
-         Y(I, 1) := Y(I, 1) * X(I, 1);
-      end loop;
-   end Hadamard_In_Place;
    
    function Equals(Left, Right : in Matrix) return Boolean is
    begin
@@ -957,5 +972,156 @@ package body Gusjo.Math.Linalg is
          end loop;
       end if;
    end Softmax_In_Place;
+
+   procedure Hadamard_In_Place (Y : in out Column_Vector;
+                                X : in     Column_Vector) is
+   begin
+      Null_Check(Y);
+      Null_Check(X);
+      if Y'Length(1) /= X'Length(1) then
+         raise Dimension_Error with "Hadamard_In_Place: length mismatch";
+      end if;
+      for I in Y'Range(1) loop
+         Y(I, 1) := Y(I, 1) * X(I, 1);
+      end loop;
+   end Hadamard_In_Place;
+
+   ------------------ Matrix OPERATORS ------------------
+
+   function L2_Norm (M : in Matrix) return Float is
+      Sum : Float := 0.0;
+   begin
+      for I in M'Range(1) loop
+         for J in M'Range(2) loop
+            Sum := Sum + M(I,J)**2;
+         end loop;
+      end loop;
+      return Sqrt(Sum);
+   end L2_Norm;
+
+   procedure Scale_In_Place (M : in out Matrix;
+                             Alpha : in Float) is
+   begin
+      Null_Check (M);
+      for i in M'Range(1) loop
+         for j in M'Range(2) loop
+            M(i,j) := Alpha * M(i,j);
+         end loop;
+      end loop;
+   end Scale_In_Place;
+
+   -- M: (R×C), B: (R×1)
+   procedure Broadcast_Add (M : in out Matrix;
+                            B : in     Matrix) is
+   begin
+      Null_Check (M); Null_Check (B);
+      if Rows(M) /= Rows(B) or else Cols(B) /= 1 then
+         raise Dimension_Error with "Broadcast_Add: shape mismatch";
+      end if;
+      for j in 1 .. Cols(M) loop
+         for i in 1 .. Rows(M) loop
+            M(i, j) := M(i, j) + B(i, 1);
+         end loop;
+      end loop;
+   end Broadcast_Add;
+
+   -- returns 1×C
+   function Colwise_Max (M : Matrix) return Matrix is
+      R : Matrix := Zeros (1, Cols(M));
+   begin
+      for j in 1 .. Cols(M) loop
+         R(1, j) := M(1, j);
+         for i in 2 .. Rows(M) loop
+            if M(i, j) > R(1, j) then R(1, j) := M(i, j); end if;
+         end loop;
+      end loop;
+      return R;
+   end Colwise_Max;
+
+   function Colwise_Sum (M : Matrix) return Matrix is
+      R : Matrix := Zeros (1, Cols(M));
+   begin
+      for j in 1 .. Cols(M) loop
+         declare S : Float := 0.0; begin
+            for i in 1 .. Rows(M) loop S := S + M(i, j); end loop;
+            R(1, j) := S;
+         end;
+      end loop;
+      return R;
+   end Colwise_Sum;
+
+   procedure Softmax_Stable (Z : in out Matrix) is
+      use Ada.Numerics.Elementary_Functions;
+      MaxRow : Matrix := Colwise_Max (Z);     -- 1×B
+   begin
+      -- subtract columnwise max
+      for j in 1 .. Cols(Z) loop
+         for i in 1 .. Rows(Z) loop
+            Z(i, j) := Z(i, j) - MaxRow(1, j);
+         end loop;
+      end loop;
+
+      -- exp
+      for j in 1 .. Cols(Z) loop
+         for i in 1 .. Rows(Z) loop
+            Z(i, j) := Exp (Z(i, j));
+         end loop;
+      end loop;
+
+      -- sum per column
+      declare S : Matrix := Colwise_Sum (Z);  -- 1×B
+      begin
+         for j in 1 .. Cols(Z) loop
+            -- guard tiny sums
+            declare denom : constant Float := (if S(1, j) > 0.0 then S(1, j) else 1.0); begin
+               for i in 1 .. Rows(Z) loop
+                  Z(i, j) := Z(i, j) / denom;
+               end loop;
+            end;
+         end loop;
+         Delete (S);
+      end;
+
+      Delete (MaxRow);
+   end Softmax_Stable;
+
+   function Mean_Columns (M : Matrix) return Matrix is
+      R : Matrix := Zeros (Rows(M), 1);
+   begin
+      for i in 1 .. Rows(M) loop
+         declare s : Float := 0.0; begin
+            for j in 1 .. Cols(M) loop s := s + M(i, j); end loop;
+            R(i,1) := s / Float(Cols(M));
+         end;
+      end loop;
+      return R;
+   end Mean_Columns;
+
+   procedure Map_In_Place(M : in out Matrix;
+                          F : not null access function (x : Float) return Float) is
+   begin
+      Null_Check(M);
+      for I in M'Range(1) loop
+         for II in M'Range(2) loop
+            M(I, II) := F(M(I, II));
+        end loop;
+      end loop;
+   end Map_In_Place;
+
+   procedure Hadamard_In_Place(Y : in out Matrix;
+                               X : in     Matrix) is
+   begin
+      Null_Check(Y);
+      Null_Check(X);
+      if Y'Length(1) /= X'Length(1) or Y'Length(2) /= X'Length(2) then
+         raise Dimension_Error with "Hadamard_In_Place: length mismatch";
+      end if;
+      for I in Y'Range(1) loop
+         for II in Y'Range(2) loop
+            Y(I, II) := Y(I, II) * X(I, II);
+         end loop;
+      end loop;
+   end Hadamard_In_Place;
+   
    
 end Gusjo.Math.Linalg;
