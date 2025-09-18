@@ -10,6 +10,8 @@ package Gusjo.Math.Linalg is
    ------------------ Types ------------------
 
    type Indices_Array is array (Positive range <>) of Positive;
+
+   type Column_Vector_Array is array (Positive range <>) of Column_Vector;
    
    ------------------ Get/Put Matrix ------------------
    
@@ -112,7 +114,7 @@ package Gusjo.Math.Linalg is
    
    function Column2(X0, X1 : Float) return Column_Vector;
 
-   function HStack_Columns(Vs : in array (Positive range <>) of Column_Vector) return Matrix;
+   function HStack_Columns(Vs : in Column_Vector_Array) return Matrix;
    
    ------------------ GETTERS ------------------
    
@@ -238,6 +240,9 @@ package Gusjo.Math.Linalg is
 
    procedure Hadamard_In_Place(Y : in out Matrix;
                                X : in     Matrix);
+
+   function OneHot_From_Labels(Labels        : in Indices_Array;
+                               Num_Classes   : in Positive) return Matrix;
    
    ------------------ EXCEPTIONS ------------------
    

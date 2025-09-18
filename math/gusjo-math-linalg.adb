@@ -112,12 +112,9 @@ package body Gusjo.Math.Linalg is
    begin
       Get(File, N);
       Get(File, M);
-      
-      Put_Line("N:" & N'Image);
-      Put_Line("M:" & M'Image);
-      
+      Skip_Line(File);
+
       Get(File, Item, N, M);
-      
    end Get;
    
    procedure Get(Item : in out Matrix;
@@ -139,11 +136,19 @@ package body Gusjo.Math.Linalg is
 		 Exp  : in Integer := 0) is
    begin
       Null_Check(Item);
+      Put(File, Item'Length(1), Width => Fore);
+      Put(File, ' ');
+      Put(File, Item'Length(2), Width => Fore);
+      New_Line(File);
+
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
-	 end loop;
-	 New_Line(File);
+         for J in Item'Range(2) loop
+            if J > Item'First(2) then
+               Put (File, ' ');
+            end if;
+            Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
+         end loop;
+      New_Line(File);
       end loop;
    end Put;
    
@@ -168,9 +173,9 @@ package body Gusjo.Math.Linalg is
       Item := new Matrix_Type(1..1, 1..M);
       
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Get(File, Item(I, J));
-	 end loop;
+         for J in Item'Range(2) loop
+            Get(File, Item(I, J));
+         end loop;
       end loop;
       
    end Get;
@@ -271,10 +276,10 @@ package body Gusjo.Math.Linalg is
    begin
       Null_Check(Item);
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
-	 end loop;
-	 New_Line(File);
+         for J in Item'Range(2) loop
+            Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
+         end loop;
+      New_Line(File);
       end loop;
    end Put;
    
@@ -352,7 +357,7 @@ package body Gusjo.Math.Linalg is
       return R;
    end Column2;
 
-   function HStack_Columns(Vs : in array (Positive range <>) of Column_Vector) return Matrix is
+   function HStack_Columns(Vs : in Column_Vector_Array) return Matrix is
    begin
       if Vs'Length = 0 then
          raise Dimension_Error with "No vectors to stack";
@@ -1219,6 +1224,23 @@ package body Gusjo.Math.Linalg is
          end loop;
       end loop;
    end Hadamard_In_Place;
-   
+
+   function OneHot_From_Labels(Labels        : in Indices_Array;
+                               Num_Classes   : in Positive) return Matrix is
+      B : constant Positive := Labels'Length;
+      Y : Matrix := Zeros (Num_Classes, B);
+   begin
+      for j in Labels'Range loop
+         declare
+            cls : constant Positive := Labels (j);
+         begin
+            if cls < 1 or else cls > Num_Classes then
+               raise Constraint_Error with "OneHot_From_Labels: label out of range";
+            end if;
+            Y (cls, j) := 1.0;
+         end;
+      end loop;
+      return Y;
+   end OneHot_From_Labels;
    
 end Gusjo.Math.Linalg;

@@ -3,7 +3,9 @@ with Ada.Unchecked_Deallocation;
 with Gusjo.Math;        use Gusjo.Math;
 with Gusjo.Math.Linalg; use Gusjo.Math.Linalg;
 with Gusjo.Ai;          use Gusjo.Ai;
-with Ada.Text_IO;       use Ada.Text_IO;
+
+with Ada.Text_IO;          use Ada.Text_IO;
+with Ada.Integer_Text_IO;  use Ada.Integer_Text_IO;
 
 with Ada.Numerics.Elementary_Functions;   use Ada.Numerics.Elementary_Functions;
 
@@ -110,17 +112,134 @@ package body Gusjo.Ai.Nn is
    -- Stubs for Save/Load (we'll fill these later)
    procedure Save(M    : in Model;
                    File : in File_Type) is
+      L : Dense_Layer;
    begin
-      -- Plan: write number of layers; per layer write dims, activation,
-      -- then all W and B elements in a stable order.
-      null;
+      Put_Line(File, "GUSJO_NN v1");
+      Put_Line(File, To_String(M.Loss));
+      if M.Ls = null then
+         Put_Line(File, "0");
+         return;
+      end if;
+
+      Put(File, Integer(M.Ls'Length), Width => 0);
+      New_Line(File);
+
+      for I in M.Ls'Range loop
+         L := M.Ls(I);
+         Put_Line(File, To_String(L.Activation));
+
+         Put_Line(File, "W");
+         Put(File, L.W);  -- <-- your Put
+
+         Put_Line(File, "B");
+         Put(File, L.B);  -- <-- your Put
+      end loop;
    end Save;
+
+   function Read_Line(File : in File_Type) return String is
+      S : constant String := Get_Line(File);
+   begin
+      return S;
+   end Read_Line;
 
    procedure Load(M    : in out Model;
                    File : in     File_Type) is
+
+      Header : constant String := Read_Line(File);
+      Maybe_Loss_Line : String := "";
+      Layer_Count     : Integer;
+      Loss_Read       : Boolean := False;
    begin
-      -- Plan: read count; resize Ls; allocate W/B and read elements; set activation.
-      null;
+      if Header /= "GUSJO_NN v1" then
+         raise Constraint_Error with "Load: bad header '" & Header & "'";
+      end if;
+
+      -- Try to read a loss line; if it parses, use it; otherwise treat it as the count
+      declare
+         Line2 : constant String := Read_Line(File);
+      begin
+         begin
+            -- attempt parse as loss; if it fails, we'll treat Line2 as count
+            M.Loss := To_Loss_Kind (Line2);
+            Loss_Read := True;
+         exception
+            when others =>
+               -- Not a loss string; interpret as count
+               declare
+                  C : Integer := Integer'Value (Line2);
+               begin
+                  Layer_Count := C;
+               exception
+                  when others =>
+                     raise Constraint_Error with "Load: expected loss or layer count after header";
+               end;
+         end;
+         if Loss_Read then
+            -- next line must be layer count
+            Get (File, Layer_Count);
+            Skip_Line (File);
+         end if;
+      end;
+
+      -- Reset current model
+      Clear (M);
+
+      if Layer_Count <= 0 then
+         return;
+      end if;
+
+      -- Rebuild layers
+      for Lidx in 1 .. Layer_Count loop
+         declare
+            Act_Str : constant String := Read_Line(File);
+            Act     : Activation_Kind := To_Activation_Kind (Act_Str);
+
+            TagW    : constant String := Read_Line(File);
+         begin
+            if TagW /= "W" then
+               raise Constraint_Error with "Load: expected 'W', got '" & TagW & "'";
+            end if;
+
+            -- Read W to get sizes, then add the layer and overwrite its W/B
+            declare
+               Wtmp   : Matrix;
+            begin
+               Get(File, Wtmp);  -- reads dims + values (your Get)
+               Skip_Line(File);
+               declare
+                  Inputs  : Positive := Positive (Cols (Wtmp));
+                  Outputs : Positive := Positive (Rows (Wtmp));
+               begin
+                  Add_Dense (M, Inputs => Inputs, Outputs => Outputs, Act => Act);
+
+                  declare
+                     L : Dense_Layer renames M.Ls (M.Ls'Last);
+                  begin
+                     Delete(L.W);
+                     L.W := Wtmp;
+                  end;
+               end;
+
+               -- Read B
+               declare
+                  TagB : constant String := Read_Line(File);
+               begin
+                  if TagB /= "B" then
+                     raise Constraint_Error with "Load: expected 'B', got '" & TagB & "'";
+                  end if;
+               end;
+               declare
+                  Btmp : Matrix;
+                  L    : Dense_Layer renames M.Ls (M.Ls'Last);
+               begin
+                  Get(File, Btmp);  -- reads dims + values
+                  Skip_Line(File);
+                  Delete(L.B);
+                  L.B := Btmp;
+               end;
+            end;
+         end;
+      end loop;
    end Load;
 
    function Forward(M : in out  Model;
@@ -372,7 +491,7 @@ package body Gusjo.Ai.Nn is
             end case;
 
             -- cache activations for this layer
-            Delete (L.A_M);
+            Delete(L.A_M);
             L.A_M := Z;                                 -- model owns Z
 
             if I = M.Ls'Last then
@@ -398,7 +517,7 @@ package body Gusjo.Ai.Nn is
       -- gradient wrt logits/activations for current layer (matrix)
       dZ : Matrix;
    begin
-      Delete (P_Tmp);  -- we only needed caches in the model
+      Delete(P_Tmp);  -- we only needed caches in the model
 
       -- --- Last layer ---
       -- CE + Softmax/Sigmoid ⇒ dZ = A_L - Y

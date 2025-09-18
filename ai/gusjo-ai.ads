@@ -15,6 +15,9 @@ package Gusjo.Ai is
    function Relu_Derivative (Z : in Float) return Float;
 
    -- Utilities (optional, handy for logs)
-   function To_String (A : Activation_Kind) return String;
-   function To_String (L : Loss_Kind)       return String;
+   function To_String(A : Activation_Kind) return String;
+   function To_String(L : Loss_Kind)       return String;
+
+   function To_Activation_Kind(Item : in String) return Activation_Kind;
+   function To_Loss_Kind(Item : in String) return Loss_Kind;
 end Gusjo.Ai;

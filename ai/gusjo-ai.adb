@@ -18,6 +18,30 @@ package body Gusjo.Ai is
       end case;
    end;
 
+   function To_Activation_Kind(Item : in String) return Activation_Kind is
+   begin
+      if Item = "sigmoid" then
+         return Sigmoid;
+      elsif Item = "relu" then
+         return ReLU;
+      elsif Item = "softmax" then
+         return Softmax;
+      else
+         raise Constraint_Error with "Unable to read """ & Item & """ as Activation_Kind.";
+      end if;
+   end To_Activation_Kind;
+
+   function To_Loss_Kind(Item : in String) return Loss_Kind is
+   begin
+      if Item = "mse" then 
+         return MSE;
+      elsif Item = "crossentropy" then
+         return CrossEntropy;
+      else
+         raise Constraint_Error with "Unable to read """ & Item & """ as Loss_Kind.";
+      end if;
+   end To_Loss_Kind;
+
    function Sigmoid(Z : in Float) return Float is
    begin
       return 1.0 / (1.0 + Exp(-Z));
