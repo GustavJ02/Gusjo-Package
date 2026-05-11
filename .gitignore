@@ -5,3 +5,5 @@
 datastructure
 main
 .vscode
+obj/
+!obj/.gitkeep
