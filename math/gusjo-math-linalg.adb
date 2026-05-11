@@ -1,6 +1,10 @@
 with Ada.Integer_Text_IO;        use Ada.Integer_Text_IO;
 with Ada.Float_Text_IO;          use Ada.Float_Text_IO;
+
 with Ada.Unchecked_Deallocation;
+with Ada.Numerics.Float_Random;
+
+with Ada.Numerics.Elementary_Functions;   use Ada.Numerics.Elementary_Functions;
 
 package body Gusjo.Math.Linalg is
    
@@ -12,18 +16,39 @@ package body Gusjo.Math.Linalg is
    
    procedure Delete(Item : in out Matrix) is
    begin
-      Free(Item);
+      if item /= null then
+         Free(Item);
+      end if;
    end Delete;
    
    procedure Delete(Item : in out Row_Vector) is
    begin
-      Free(Item);
+      if item /= null then
+         Free(Item);
+      end if;
    end Delete;
    
    procedure Delete(Item : in out Column_Vector) is
    begin
-      Free(Item);
+      if item /= null then
+         Free(Item);
+      end if;
    end Delete;
+
+   procedure Set_To_Null(Item : in out Matrix) is
+   begin
+      Item := null;
+   end Set_To_Null;
+   
+   procedure Set_To_Null(Item : in out Row_Vector) is
+   begin
+      Item := null;
+   end Set_To_Null;
+   
+   procedure Set_To_Null(Item : in out Column_Vector) is
+   begin
+      Item := null;
+   end Set_To_Null;
    
    procedure Null_Check(Item : in Matrix) is
    begin
@@ -87,12 +112,9 @@ package body Gusjo.Math.Linalg is
    begin
       Get(File, N);
       Get(File, M);
-      
-      Put_Line("N:" & N'Image);
-      Put_Line("M:" & M'Image);
-      
+      Skip_Line(File);
+
       Get(File, Item, N, M);
-      
    end Get;
    
    procedure Get(Item : in out Matrix;
@@ -114,11 +136,19 @@ package body Gusjo.Math.Linalg is
 		 Exp  : in Integer := 0) is
    begin
       Null_Check(Item);
+      Put(File, Item'Length(1), Width => Fore);
+      Put(File, ' ');
+      Put(File, Item'Length(2), Width => Fore);
+      New_Line(File);
+
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
-	 end loop;
-	 New_Line(File);
+         for J in Item'Range(2) loop
+            if J > Item'First(2) then
+               Put (File, ' ');
+            end if;
+            Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
+         end loop;
+      New_Line(File);
       end loop;
    end Put;
    
@@ -143,9 +173,9 @@ package body Gusjo.Math.Linalg is
       Item := new Matrix_Type(1..1, 1..M);
       
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Get(File, Item(I, J));
-	 end loop;
+         for J in Item'Range(2) loop
+            Get(File, Item(I, J));
+         end loop;
       end loop;
       
    end Get;
@@ -246,10 +276,10 @@ package body Gusjo.Math.Linalg is
    begin
       Null_Check(Item);
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
-	 end loop;
-	 New_Line(File);
+         for J in Item'Range(2) loop
+            Put(File, Item(I, J), Fore => Fore, Aft => Aft, Exp => Exp);
+         end loop;
+      New_Line(File);
       end loop;
    end Put;
    
@@ -267,14 +297,13 @@ package body Gusjo.Math.Linalg is
       Result : Matrix;
    begin
       Null_Check(Item);
-      Square_Check(Item);
       
-      Result := new Matrix_Type(Item'Range(1), Item'Range(2));
+      Result := new Matrix_Type(Item'Range(2), Item'Range(1));
       
       for I in Item'Range(1) loop
-	 for J in Item'Range(2) loop
-	    Result(J, I) := Item(I, J);
-	 end loop;
+	      for J in Item'Range(2) loop
+	         Result(J, I) := Item(I, J);
+   	   end loop;
       end loop;
       
       return Result;
@@ -291,6 +320,77 @@ package body Gusjo.Math.Linalg is
       end loop;
       return Result;
    end Identity_Matrix;
+
+   procedure Fill_Random_Uniform(V : in out Column_Vector; Low, High : in Float) is
+      Gen : Ada.Numerics.Float_Random.Generator;
+      Rng : constant Float := High - Low;
+   begin
+      Null_Check(V);
+      Ada.Numerics.Float_Random.Reset(Gen);
+      for I in V'Range(1) loop
+         V(I, 1) := Low + Rng * Ada.Numerics.Float_Random.Random(Gen);
+      end loop;
+   end Fill_Random_Uniform;
+
+   procedure Fill_Random_Uniform(M           : in out Matrix;
+                                 Low, High   : in     Float) is
+      Gen : Ada.Numerics.Float_Random.Generator;
+      Rng : constant Float := High - Low;
+   begin
+      Null_Check(M);
+      Ada.Numerics.Float_Random.Reset(Gen);
+      for I in M'Range(1) loop
+         for II in M'Range(2) loop
+            M(I, II) := Low + Rng * Ada.Numerics.Float_Random.Random(Gen);
+         end loop;
+      end loop;
+   end Fill_Random_Uniform;
+
+   function Column2(X0, X1 : Float) return Column_Vector is
+      M : Matrix := Zeros(2, 1);
+      R : Column_Vector;
+   begin
+      M(1, 1) := X0;
+      M(2, 1) := X1;
+      R := To_Column_Vector(M);
+      Delete(M);
+      return R;
+   end Column2;
+
+   function HStack_Columns(Vs : in Column_Vector_Array) return Matrix is
+   begin
+      if Vs'Length = 0 then
+         raise Dimension_Error with "No vectors to stack";
+      end if;
+
+      -- Validate vectors and find common row count
+      Null_Check (Vs (Vs'First));
+      declare
+         Rows_Count : constant Positive := Vs (Vs'First)'Length (1);
+         B          : constant Positive := Vs'Length;
+         R          : Matrix           := Zeros (Rows_Count, B);
+         col        : Positive          := 1;
+      begin
+         -- Check all lengths match
+         for k in Vs'First .. Vs'Last loop
+            Null_Check (Vs (k));
+            if Vs (k)'Length (1) /= Rows_Count then
+               raise Dimension_Error with "HStack_Columns: all vectors must have same length";
+            end if;
+         end loop;
+
+         -- Copy each vector into column 'col'
+         for k in Vs'First .. Vs'Last loop
+            for i in 1 .. Rows_Count loop
+               R (i, col) := Vs (k) (i, 1);
+            end loop;
+            col := col + 1;
+         end loop;
+
+         return R;
+      end;
+   end HStack_Columns;
+
    
    ----------------------------------------------------------------------------------
    
@@ -347,6 +447,109 @@ package body Gusjo.Math.Linalg is
       Null_Check(Item);
       return Item'Last(1);
    end Rows;
+
+   function Length(V : in Column_Vector) return Positive is
+   begin
+      Null_Check(V);
+      return Positive(V'Length(1));
+   end Length;
+
+   function Length(V : in Row_Vector) return Positive is
+   begin
+      Null_Check(V);
+      return Positive(V'Length(2));
+   end Length;
+
+   function Argmax(V : Column_Vector) return Positive is
+      Best_I : Positive := V'First(1);
+      Best_V : Float    := V(Best_I, 1);
+   begin
+      for I in V'First(1) + 1 .. V'Last(1) loop
+         if V(I, 1) > Best_V then
+            Best_V := V(I, 1);
+            Best_I := I;
+         end if;
+      end loop;
+      return Best_I;
+   end;
+
+   function Argmax_Columns(P : in Matrix) return Indices_Array is
+   begin
+      Null_Check (P);
+      if Cols (P) = 0 then
+         -- Return an empty index array
+         declare
+            Empty : Indices_Array (1 .. 0);
+         begin
+            return Empty;
+         end;
+      end if;
+
+      declare
+         B   : constant Positive      := Cols (P);
+         Res : Indices_Array (1 .. B);
+      begin
+         for j in 1 .. B loop
+            -- Initialize with first row of column j
+            declare
+               best_i : Positive := 1;
+               best_v : Float    := P (1, j);
+            begin
+               for i in 2 .. Rows (P) loop
+                  if P (i, j) > best_v then
+                     best_v := P (i, j);
+                     best_i := i;
+                  end if;
+               end loop;
+               Res(j) := best_i;
+            end;
+         end loop;
+         return Res;
+      end;
+   end Argmax_Columns;
+
+   function CrossEntropy_OneHot(P, Y : Column_Vector) return Float is
+      Eps : constant Float := 1.0E-7;
+      CE  : Float := 0.0;
+      Pi  : Float;
+   begin
+      for I in P'Range(1) loop
+         if Y(I, 1) = 1.0 then
+            Pi := Float'Max(Eps, Float'Min (1.0 - Eps, P (I, 1)));
+            CE := -Log(Pi);
+            return CE;
+         end if;
+      end loop;
+      return 0.0; -- if Y isn't one-hot, you can extend to full sum
+   end;
+
+   function CrossEntropy_OneHot(P, Y : in Matrix) return Float is
+      B    : constant Float := Float(Cols(P));  -- batch size
+      Loss : Float := 0.0;
+   begin
+      Null_Check(P);
+      Null_Check(Y);
+
+      if Rows(P) /= Rows(Y) or else Cols(P) /= Cols(Y) then
+         raise Dimension_Error with "P and Y must have same shape in CrossEntropy_OneHot";
+      end if;
+
+      for j in 1 .. Cols(P) loop
+         for i in 1 .. Rows(P) loop
+            if Y(i, j) = 1.0 then
+               -- clip to avoid log(0)
+               declare
+                  p_clipped : constant Float :=
+                  Float'Max(1.0E-7, Float'Min(1.0 - 1.0E-7, P(i, j)));
+               begin
+                  Loss := Loss - Log(p_clipped);
+               end;
+            end if;
+         end loop;
+      end loop;
+
+      return Loss / B;
+   end CrossEntropy_OneHot;
    
    ----------------------------------------------------------------------------------
    
@@ -393,7 +596,7 @@ package body Gusjo.Math.Linalg is
    begin
       Null_Check(Left);
       Null_Check(Right);
-      
+
       if Cols(Left) /= Rows(Right) then
 	 raise Dimension_Error with "Number of collumns in left matrix must equal number of rows in right matrix";
       end if;
@@ -591,7 +794,7 @@ package body Gusjo.Math.Linalg is
       
       function OddEven(I, J : in Integer) return Float is
       begin
-   	 if (I + J) mod 2 = 0 then
+   	 if(I + J) mod 2 = 0 then
    	    return 1.0;
    	 else
    	    return-1.0;
@@ -796,14 +999,248 @@ package body Gusjo.Math.Linalg is
       Null_Check(Right);
       
       if Left'Length(1) /= Right'Length(1) then
-	 raise Dimension_Error with "Vector must contain 3 elements to calculate Cross-Product";
+	 raise Dimension_Error with "Dot_Product: length mismatch";
       end if;
       
       for I in Left'Range(1) loop
-	 Result := Result + Left(I, I) * Right(I, I);
+	 Result := Result + Left(I, 1) * Right(I, 1);
       end loop;
       
       return Result;
    end Dot_Product;
+
+   procedure Axpy(Y     : in out Column_Vector;
+                  Alpha : in     Float;
+                  X     : in     Column_Vector) is
+   begin
+      Null_Check(Y);
+      Null_Check(X);
+      if Y'Length(1) /= X'Length(1) then
+         raise Dimension_Error with "Axpy: vector length mismatch";
+      end if;
+
+      for I in Y'Range(1) loop
+         Y(I, 1) := Y(I, 1) + Alpha * X(I, 1);
+      end loop;
+   end Axpy;
+
+   procedure Map_In_Place(V : in out Column_Vector;
+                          F : not null access function(x : Float) return Float) is
+   begin
+      Null_Check(V);
+      for I in V'Range(1) loop
+         V(I, 1) := F(V(I, 1));
+      end loop;
+   end Map_In_Place;
+
+   procedure Softmax_In_Place(V : in out Column_Vector) is
+      MaxV : Float;
+      SumE : Float := 0.0;
+   begin
+      Null_Check(V);
+
+      MaxV := V(1, 1);
+
+      -- 1) find max
+      for i in V'Range(1) loop
+         if V(i, 1) > MaxV then
+            MaxV := V(i, 1);
+         end if;
+      end loop;
+
+      -- 2) subtract max and exp
+      for i in V'Range(1) loop
+         V(i, 1) := Exp(V(i, 1) - MaxV);
+      end loop;
+
+      -- 3) sum
+      for i in V'Range(1) loop
+         SumE := SumE + V(i, 1);
+      end loop;
+
+      -- 4) normalize (guard tiny sums just in case)
+      if SumE <= 0.0 then
+         -- fallback: uniform distribution
+         declare
+            n : constant Float := Float(V'Length(1));
+         begin
+            for i in V'Range(1) loop
+               V(i, 1) := 1.0 / n;
+            end loop;
+         end;
+      else
+         for i in V'Range(1) loop
+            V(i, 1) := V(i, 1) / SumE;
+         end loop;
+      end if;
+   end Softmax_In_Place;
+
+   procedure Hadamard_In_Place (Y : in out Column_Vector;
+                                X : in     Column_Vector) is
+   begin
+      Null_Check(Y);
+      Null_Check(X);
+      if Y'Length(1) /= X'Length(1) then
+         raise Dimension_Error with "Hadamard_In_Place: length mismatch";
+      end if;
+      for I in Y'Range(1) loop
+         Y(I, 1) := Y(I, 1) * X(I, 1);
+      end loop;
+   end Hadamard_In_Place;
+
+   ------------------ Matrix OPERATORS ------------------
+
+   function L2_Norm (M : in Matrix) return Float is
+      Sum : Float := 0.0;
+   begin
+      for I in M'Range(1) loop
+         for J in M'Range(2) loop
+            Sum := Sum + M(I,J)**2;
+         end loop;
+      end loop;
+      return Sqrt(Sum);
+   end L2_Norm;
+
+   procedure Scale_In_Place (M : in out Matrix;
+                             Alpha : in Float) is
+   begin
+      Null_Check (M);
+      for i in M'Range(1) loop
+         for j in M'Range(2) loop
+            M(i,j) := Alpha * M(i,j);
+         end loop;
+      end loop;
+   end Scale_In_Place;
+
+   -- M: (R×C), B: (R×1)
+   procedure Broadcast_Add (M : in out Matrix;
+                            B : in     Matrix) is
+   begin
+      Null_Check (M); Null_Check (B);
+      if Rows(M) /= Rows(B) or else Cols(B) /= 1 then
+         raise Dimension_Error with "Broadcast_Add: shape mismatch";
+      end if;
+      for j in 1 .. Cols(M) loop
+         for i in 1 .. Rows(M) loop
+            M(i, j) := M(i, j) + B(i, 1);
+         end loop;
+      end loop;
+   end Broadcast_Add;
+
+   -- returns 1×C
+   function Colwise_Max (M : Matrix) return Matrix is
+      R : Matrix := Zeros (1, Cols(M));
+   begin
+      for j in 1 .. Cols(M) loop
+         R(1, j) := M(1, j);
+         for i in 2 .. Rows(M) loop
+            if M(i, j) > R(1, j) then R(1, j) := M(i, j); end if;
+         end loop;
+      end loop;
+      return R;
+   end Colwise_Max;
+
+   function Colwise_Sum (M : Matrix) return Matrix is
+      R : Matrix := Zeros (1, Cols(M));
+   begin
+      for j in 1 .. Cols(M) loop
+         declare S : Float := 0.0; begin
+            for i in 1 .. Rows(M) loop S := S + M(i, j); end loop;
+            R(1, j) := S;
+         end;
+      end loop;
+      return R;
+   end Colwise_Sum;
+
+   procedure Softmax_Stable (Z : in out Matrix) is
+      use Ada.Numerics.Elementary_Functions;
+      MaxRow : Matrix := Colwise_Max (Z);     -- 1×B
+   begin
+      -- subtract columnwise max
+      for j in 1 .. Cols(Z) loop
+         for i in 1 .. Rows(Z) loop
+            Z(i, j) := Z(i, j) - MaxRow(1, j);
+         end loop;
+      end loop;
+
+      -- exp
+      for j in 1 .. Cols(Z) loop
+         for i in 1 .. Rows(Z) loop
+            Z(i, j) := Exp (Z(i, j));
+         end loop;
+      end loop;
+
+      -- sum per column
+      declare S : Matrix := Colwise_Sum (Z);  -- 1×B
+      begin
+         for j in 1 .. Cols(Z) loop
+            -- guard tiny sums
+            declare denom : constant Float := (if S(1, j) > 0.0 then S(1, j) else 1.0); begin
+               for i in 1 .. Rows(Z) loop
+                  Z(i, j) := Z(i, j) / denom;
+               end loop;
+            end;
+         end loop;
+         Delete (S);
+      end;
+
+      Delete (MaxRow);
+   end Softmax_Stable;
+
+   function Mean_Columns (M : Matrix) return Matrix is
+      R : Matrix := Zeros (Rows(M), 1);
+   begin
+      for i in 1 .. Rows(M) loop
+         declare s : Float := 0.0; begin
+            for j in 1 .. Cols(M) loop s := s + M(i, j); end loop;
+            R(i,1) := s / Float(Cols(M));
+         end;
+      end loop;
+      return R;
+   end Mean_Columns;
+
+   procedure Map_In_Place(M : in out Matrix;
+                          F : not null access function (x : Float) return Float) is
+   begin
+      Null_Check(M);
+      for I in M'Range(1) loop
+         for II in M'Range(2) loop
+            M(I, II) := F(M(I, II));
+        end loop;
+      end loop;
+   end Map_In_Place;
+
+   procedure Hadamard_In_Place(Y : in out Matrix;
+                               X : in     Matrix) is
+   begin
+      Null_Check(Y);
+      Null_Check(X);
+      if Y'Length(1) /= X'Length(1) or Y'Length(2) /= X'Length(2) then
+         raise Dimension_Error with "Hadamard_In_Place: length mismatch";
+      end if;
+      for I in Y'Range(1) loop
+         for II in Y'Range(2) loop
+            Y(I, II) := Y(I, II) * X(I, II);
+         end loop;
+      end loop;
+   end Hadamard_In_Place;
+
+   function OneHot_From_Labels(Labels        : in Indices_Array;
+                               Num_Classes   : in Positive) return Matrix is
+      B : constant Positive := Labels'Length;
+      Y : Matrix := Zeros (Num_Classes, B);
+   begin
+      for j in Labels'Range loop
+         declare
+            cls : constant Positive := Labels (j);
+         begin
+            if cls < 1 or else cls > Num_Classes then
+               raise Constraint_Error with "OneHot_From_Labels: label out of range";
+            end if;
+            Y (cls, j) := 1.0;
+         end;
+      end loop;
+      return Y;
+   end OneHot_From_Labels;
    
 end Gusjo.Math.Linalg;

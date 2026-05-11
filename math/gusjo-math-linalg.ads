@@ -6,6 +6,12 @@ With Gusjo;       use Gusjo;
 -- M, Range(2) => Cols
 
 package Gusjo.Math.Linalg is
+
+   ------------------ Types ------------------
+
+   type Indices_Array is array (Positive range <>) of Positive;
+
+   type Column_Vector_Array is array (Positive range <>) of Column_Vector;
    
    ------------------ Get/Put Matrix ------------------
    
@@ -99,28 +105,54 @@ package Gusjo.Math.Linalg is
    function Ones(N : in Positive) return Matrix;
    
    function Ones(N, M : in Positive) return Matrix;
+
+   procedure Fill_Random_Uniform(V           : in out Column_Vector;
+                                 Low, High   : in     Float);
+
+   procedure Fill_Random_Uniform(M           : in out Matrix;
+                                 Low, High   : in     Float);
+   
+   function Column2(X0, X1 : Float) return Column_Vector;
+
+   function HStack_Columns(Vs : in Column_Vector_Array) return Matrix;
    
    ------------------ GETTERS ------------------
    
-   function Rows(Item : in Matrix) return Positive;
+   function Rows(Item : in Matrix)        return Positive;
    
-   function Cols(Item : in Matrix) return Positive;
+   function Cols(Item : in Matrix)        return Positive;
+
+   function Length(V : in Column_Vector) return Positive;
+   
+   function Length(V : in Row_Vector)    return Positive;
+
+   function Argmax(V : in Column_Vector) return Positive;
+
+   function Argmax_Columns(P : in Matrix) return Indices_Array;
+
+   function CrossEntropy_OneHot(P, Y : in Column_Vector) return Float;
+
+   function CrossEntropy_OneHot(P, Y : in Matrix) return Float;
    
    ------------------ OPERATORS ------------------
    
-   function "*"(Left, Right : in Matrix) return Matrix;
+   function "*"(Left, Right : in Matrix)  return Matrix;
    
    function "*"(Left  : in Matrix;
-		Right : in Float) return Matrix;
+		Right : in Float)                   return Matrix;
    
    function "*"(Left  : in Float;
-		Right : in Matrix) return Matrix;
+		Right : in Matrix)                  return Matrix;
    
    function "*"(Left  : in Matrix;
-		Right : in Integer) return Matrix;
+		Right : in Integer)                 return Matrix;
    
    function "*"(Left  : in Integer;
-		Right : in Matrix) return Matrix;
+		Right : in Matrix)                  return Matrix;
+
+   function "+"(left, right : in Matrix)  return Matrix;
+
+   function "-"(Left, Right : in Matrix)  return Matrix;
    
    function Equals(Left, Right : in Matrix) return Boolean;
    
@@ -131,10 +163,10 @@ package Gusjo.Math.Linalg is
    function Transpose(Item : in Matrix) return Matrix;
    
    procedure Combine_Vertically(Top    : in out Matrix;
-				Bottom : in Matrix);
+				                    Bottom : in Matrix);
    
    procedure Combine_Horizontally(Left  : in out Matrix;
-				  Right : in Matrix);
+				                      Right : in Matrix);
    
    ------------------ DELETE ------------------
    
@@ -143,6 +175,12 @@ package Gusjo.Math.Linalg is
    procedure Delete(Item : in out Row_Vector);
    
    procedure Delete(Item : in out Column_Vector);
+
+   procedure Set_To_Null(Item : in out Matrix);
+   
+   procedure Set_To_Null(Item : in out Row_Vector);
+   
+   procedure Set_To_Null(Item : in out Column_Vector);
    
    ------------------ CONVERTERS ------------------
    
@@ -165,7 +203,46 @@ package Gusjo.Math.Linalg is
    function Cross_Product(Left, Right : in Column_Vector) return Column_Vector;
    
    function Dot_Product(Left  : in Column_Vector;
-			Right : in Column_Vector) return Float;
+			               Right : in Column_Vector) return Float;
+
+   procedure Axpy (Y : in out Column_Vector;
+                   Alpha : in Float;
+                   X : in Column_Vector);
+
+   procedure Map_In_Place(V : in out Column_Vector;
+                          F : not null access function (x : Float) return Float);
+
+   procedure Softmax_In_Place(V : in out Column_Vector);
+
+   procedure Hadamard_In_Place(Y : in out Column_Vector;
+                               X : in     Column_Vector);
+
+   ------------------ Matrix OPERATORS ------------------
+
+   function L2_Norm(M : in Matrix) return Float;
+
+   procedure Scale_In_Place (M     : in out Matrix;
+                             Alpha : in     Float);
+
+   procedure Broadcast_Add (M : in out Matrix;
+                            B : in     Matrix);
+
+   function Colwise_Max (M : Matrix) return Matrix;
+
+   function Colwise_Sum (M : Matrix) return Matrix;
+
+   procedure Softmax_Stable (Z : in out Matrix);
+
+   function Mean_Columns (M : Matrix) return Matrix;
+
+   procedure Map_In_Place(M : in out Matrix;
+                          F : not null access function (x : Float) return Float);
+
+   procedure Hadamard_In_Place(Y : in out Matrix;
+                               X : in     Matrix);
+
+   function OneHot_From_Labels(Labels        : in Indices_Array;
+                               Num_Classes   : in Positive) return Matrix;
    
    ------------------ EXCEPTIONS ------------------
    
