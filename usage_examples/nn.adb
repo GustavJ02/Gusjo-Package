@@ -16,7 +16,10 @@ procedure Nn is
    X3 : constant Column_Vector := Column2(1.0, 0.0);
    X4 : constant Column_Vector := Column2(1.0, 1.0);
 
-   Y1, Y2, Y3, Y4 : Column_Vector;
+   Y1 : Column_Vector := Column1(0.0);
+   Y2 : Column_Vector := Column1(0.0);
+   Y3 : Column_Vector := Column1(0.0);
+   Y4 : Column_Vector := Column1(1.0);
 
    P : Column_Vector;
 
@@ -27,26 +30,6 @@ begin
    Create(M, Loss => CrossEntropy);
    Add_Dense(M, Inputs => 2, Outputs => 1, Act => Sigmoid, Random_Bias => True);
 
-   -- Create label column-vectors (single-element columns)
-   declare
-      T : Matrix;
-   begin
-      T := Matrix_With_Num(1, 1, 0.0);
-      Y1 := To_Column_Vector(T);
-      Delete(T);
-
-      T := Matrix_With_Num(1, 1, 0.0);
-      Y2 := To_Column_Vector(T);
-      Delete(T);
-
-      T := Matrix_With_Num(1, 1, 0.0);
-      Y3 := To_Column_Vector(T);
-      Delete(T);
-
-      T := Matrix_With_Num(1, 1, 1.0);
-      Y4 := To_Column_Vector(T);
-      Delete(T);
-   end;
 
    -- Training loop (very small dataset)
    for E in 1 .. Epochs loop
