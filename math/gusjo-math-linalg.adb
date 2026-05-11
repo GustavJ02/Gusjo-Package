@@ -346,6 +346,16 @@ package body Gusjo.Math.Linalg is
       end loop;
    end Fill_Random_Uniform;
 
+   function Column1(X0 : Float) return Column_Vector is
+      M : Matrix := Zeros(1, 1);
+      R : Column_Vector;
+   begin
+      M(1, 1) := X0;
+      R := To_Column_Vector(M);
+      Delete(M);
+      return R;
+   end Column1;
+
    function Column2(X0, X1 : Float) return Column_Vector is
       M : Matrix := Zeros(2, 1);
       R : Column_Vector;

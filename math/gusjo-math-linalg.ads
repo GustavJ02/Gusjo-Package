@@ -112,6 +112,8 @@ package Gusjo.Math.Linalg is
    procedure Fill_Random_Uniform(M           : in out Matrix;
                                  Low, High   : in     Float);
    
+   function Column1(X0 : Float) return Column_Vector;
+
    function Column2(X0, X1 : Float) return Column_Vector;
 
    function HStack_Columns(Vs : in Column_Vector_Array) return Matrix;
