@@ -367,6 +367,51 @@ package body Gusjo.Math.Linalg is
       return R;
    end Column2;
 
+   function Column3(X0, X1, X2 : Float) return Column_Vector is
+      M : Matrix := Zeros(3, 1);
+      R : Column_Vector;
+   begin
+      M(1, 1) := X0;
+      M(2, 1) := X1;
+      M(3, 1) := X2;
+      R := To_Column_Vector(M);
+      Delete(M);
+      return R;
+   end Column3;
+
+   function Row1(X0 : Float) return Row_Vector is
+      M : Matrix := Zeros(1, 1);
+      R : Row_Vector;
+   begin
+      M(1, 1) := X0;
+      R := To_Row_Vector(M);
+      Delete(M);
+      return R;
+   end Row1;
+
+   function Row2(X0, X1 : Float) return Row_Vector is
+      M : Matrix := Zeros(1, 2);
+      R : Row_Vector;
+   begin
+      M(1, 1) := X0;
+      M(1, 2) := X1;
+      R := To_Row_Vector(M);
+      Delete(M);
+      return R;
+   end Row2;
+
+   function Row3(X0, X1, X2 : Float) return Row_Vector is
+      M : Matrix := Zeros(1, 3);
+      R : Row_Vector;
+   begin
+      M(1, 1) := X0;
+      M(1, 2) := X1;
+      M(1, 3) := X2;
+      R := To_Row_Vector(M);
+      Delete(M);
+      return R;
+   end Row3;
+
    function HStack_Columns(Vs : in Column_Vector_Array) return Matrix is
    begin
       if Vs'Length = 0 then
@@ -400,6 +445,40 @@ package body Gusjo.Math.Linalg is
          return R;
       end;
    end HStack_Columns;
+
+   function VStack_Rows(Rs : in Row_Vector_Array) return Matrix is
+   begin
+      if Rs'Length = 0 then
+         raise Dimension_Error with "No vectors to stack";
+      end if;
+
+      -- Validate vectors and find common column count
+      Null_Check (Rs (Rs'First));
+      declare
+         Cols_Count : constant Positive := Rs (Rs'First)'Length (2);
+         B          : constant Positive := Rs'Length;
+         R          : Matrix           := Zeros (B, Cols_Count);
+         row        : Positive          := 1;
+      begin
+         -- Check all lengths match
+         for k in Rs'First .. Rs'Last loop
+            Null_Check (Rs (k));
+            if Rs (k)'Length (2) /= Cols_Count then
+               raise Dimension_Error with "VStack_Rows: all vectors must have same length";
+            end if;
+         end loop;
+
+         -- Copy each vector into row 'row'
+         for k in Rs'First .. Rs'Last loop
+            for j in 1 .. Cols_Count loop
+               R (row, j) := Rs (k) (1, j);
+            end loop;
+            row := row + 1;
+         end loop;
+
+         return R;
+      end;
+   end VStack_Rows;
 
    
    ----------------------------------------------------------------------------------
