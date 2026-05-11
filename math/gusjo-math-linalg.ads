@@ -12,6 +12,8 @@ package Gusjo.Math.Linalg is
    type Indices_Array is array (Positive range <>) of Positive;
 
    type Column_Vector_Array is array (Positive range <>) of Column_Vector;
+
+   type Row_Vector_Array is array (Positive range <>) of Row_Vector;
    
    ------------------ Get/Put Matrix ------------------
    
@@ -116,7 +118,17 @@ package Gusjo.Math.Linalg is
 
    function Column2(X0, X1 : Float) return Column_Vector;
 
+   function Column3(X0, X1, X2 : Float) return Column_Vector;
+
+   function Row1(X0 : Float) return Row_Vector;
+
+   function Row2(X0, X1 : Float) return Row_Vector;
+
+   function Row3(X0, X1, X2 : Float) return Row_Vector;
+
    function HStack_Columns(Vs : in Column_Vector_Array) return Matrix;
+
+   function VStack_Rows(Rs : in Row_Vector_Array) return Matrix;
    
    ------------------ GETTERS ------------------
    
