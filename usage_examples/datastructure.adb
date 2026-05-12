@@ -10,6 +10,7 @@ with Gusjo.Ds.Linked_List;
 with Gusjo.Ds.Stack;
 with Gusjo.Ds.Queue;
 with Gusjo.Ds.Heap;
+With Gusjo.Ds.Array_List;
 
 procedure Datastructure is
    package Integer_Stack is new Gusjo.Ds.Stack(Element_Type => Integer);
@@ -23,6 +24,9 @@ procedure Datastructure is
 
    package Integer_Heap is new Gusjo.Ds.Heap(Element_Type => Integer, "<" => "<", ">" => ">", "<=" => "<=", ">=" => ">=");
    use Integer_Heap;
+
+   package Integer_Array_List is new Gusjo.Ds.Array_List(Element_Type => Integer);
+   use Integer_Array_List;
    
    subtype Positive_Subrange is Integer range 1 .. 500;
    
@@ -35,6 +39,7 @@ procedure Datastructure is
    F: Float;
    Ll : Linked_List_Type;
    Heap : Min_Heap_Type(8);
+   List : Array_List_Type(10);
    
    G : Generator;
    
@@ -49,7 +54,7 @@ begin
    
    loop
       begin
-	 Insert(Random(G), Heap);
+   	 Integer_Heap.Insert(Random(G), Heap);
       exception
 	 when Heap_Overflow =>
 	    exit;
@@ -72,10 +77,6 @@ begin
       New_Line;
    end loop;
    New_Line;
-     
-   for I in 1..10 loop
-      Push(I, S);
-   end loop;
    
    while not Isempty(S) loop
       Pop(I, S);
@@ -94,5 +95,21 @@ begin
 	 Put(" - ");
       end if;
    end loop;
+
+   New_Line;
+
+   For I in 1..20 loop
+      Insert(I, List);
+   end loop;
+
+   Put('[');
+   for I in 1..Size(List) loop
+      Put(Get_Element_At_Index(List, I), Width => 0);
+      if I /= Size(List) then
+         Put(", ");
+      end if;
+   end loop;
+   Put(']');
+   New_Line;
    
 end Datastructure;
