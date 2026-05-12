@@ -151,7 +151,6 @@ package body Gusjo.Data.Frame is
       Header_Count : Natural;
       Data_Count : Natural;
       Row_Num : Natural := 0;
-      Col_Idx : Natural;
       First_Row : Boolean := True;
    begin
       DF.Num_Rows := 0;
