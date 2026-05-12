@@ -2,26 +2,26 @@ with Ada.Unchecked_Deallocation;
 
 package body Gusjo.Ds.Array_List is
 
-   procedure Free is new Ada.Unchecked_Deallocation(Array_Type, Array_List_Type);
+   procedure Free is new Ada.Unchecked_Deallocation(Array_Type, Array_Access);
 
    procedure Insert(Item: in     Element_Type;
           List: in out Array_List_Type) is
    begin
-      if List.Size = List.Max_Size then
+      if List.Size = List.Capacity then
          declare
-            Old_Data : access Array_Type;
+            Old_Data : Array_Access;
          begin
             Old_Data := List.Data;
-            List.Data := new Array_Type(1..List.Max_Size * 2);
-            for I in 1..List.Max_Size loop
+            List.Data := new Array_Type(1..List.Capacity * 2);
+            for I in 1..List.Capacity loop
                List.Data(I) := Old_Data(I);
             end loop;
             Free(Old_Data);
-            List.Max_Size := List.Max_Size * 2;
+            List.Capacity := List.Capacity * 2;
          end;
       end if;
       if List.Data = null then
-         List.Data := new Array_Type(1..List.Max_Size);
+         List.Data := new Array_Type(1..List.Capacity);
       end if;
       List.Data(List.Size + 1) := Item;
       List.Size := List.Size + 1;

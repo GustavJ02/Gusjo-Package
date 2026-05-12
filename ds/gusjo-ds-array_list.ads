@@ -7,8 +7,6 @@ generic
 package Gusjo.Ds.Array_List is
    
    type Array_List_Type(Max_Size: positive) is private;
-
-   type Arrat_List_Type is private;
    
    procedure Insert(Item: in     Element_Type;
 		              List: in out Array_List_Type);
@@ -22,21 +20,16 @@ package Gusjo.Ds.Array_List is
    
 private
    
-   type Array_Type is
-      Array(Natural range <>) of Element_Type;
-   
-   type Array_List_Type is
-     record
-      Data: access Array_Type;
-      Size: Integer := 0;
-      Max_Size: Integer := 8;
-     end record;
+    type Array_Type is
+         array (Natural range <>) of Element_Type;
 
-   type Array_List_Type(Max_Size: positive) is
-     record
-      Data: access Array_Type;
-      Size: Integer := 0;
-      Max_Size: Integer := Max_Size;
-     end record;
+    type Array_Access is access all Array_Type;
+
+    type Array_List_Type(Max_Size: positive) is
+          record
+             Data: Array_Access;
+             Size: Integer := 0;
+             Capacity: Positive := Max_Size;
+          end record;
    
 end Gusjo.Ds.Array_List;
