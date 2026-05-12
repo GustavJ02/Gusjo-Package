@@ -43,7 +43,7 @@ gnatmake -I. -Iai -Imath -Ids -Iio -Iusage_examples nn.adb
 
 You can also compile an optimized version using the following command:
 ```bash
-gnatmake -P gusjo.gpr usage_examples/iris_nn.adb -cargs -O3 -march=native -gnatn -largs
+gnatmake -P gusjo.gpr usage_examples/iris_nn.adb -cargs -O3
 ```
 
 ## Run
