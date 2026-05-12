@@ -60,3 +60,7 @@ The repository keeps `obj/.gitkeep` so the build directory exists after cloning,
 ## Current Focus
 
 This project is meant as a learning workspace. The code is intentionally practical and exploratory, and it is expected to grow over time as new Ada ideas are implemented and tested.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
