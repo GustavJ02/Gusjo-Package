@@ -12,18 +12,6 @@ procedure Iris_Nn is
    Epochs : constant Positive := 1000;
    LR : constant Float := 0.01;
 
-   function Accuracy(Predicted, Actual : Indices_Array) return Float is
-      Correct : Natural := 0;
-   begin
-      for I in Predicted'Range loop
-         if Predicted(I) = Actual(I) then
-            Correct := Correct + 1;
-         end if;
-      end loop;
-
-      return Float(Correct) / Float(Predicted'Length);
-   end Accuracy;
-
    procedure Print_Accuracy(Label : String;
                             Predicted, Actual : Indices_Array) is
    begin
@@ -66,6 +54,13 @@ begin
          Test_Pred : constant Indices_Array := Argmax_Columns(Forward_Batch(Net, Test_X));
       begin
          Print_Accuracy("Final test accuracy:", Test_Pred, Test_Labels);
+         Put_Line("Confusion Matrix:");
+         declare
+            CM : Matrix := Confusion_Matrix(Test_Pred, Test_Labels);
+         begin
+            Put(CM);
+            Delete(CM);
+         end;
       end;
 
       Delete(Train_X);
