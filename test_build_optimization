@@ -1,0 +1,41 @@
+#!/usr/bin/bash
+
+# Baseline
+echo "Compiling baseline..."
+rm obj/*
+gnatmake -P gusjo.gpr usage_examples/iris_nn.adb
+
+echo "Running baseline..."
+hyperfine './obj/iris_nn'
+
+# Only optimization
+echo "Compiling with optimization..."
+rm obj/*
+gnatmake -P gusjo.gpr usage_examples/iris_nn.adb -cargs -O3
+
+echo "Running with optimization..."
+hyperfine './obj/iris_nn'
+
+# Optimization + native CPU
+echo "Compiling with optimization and native CPU..."
+rm obj/*
+gnatmake -P gusjo.gpr usage_examples/iris_nn.adb -cargs -O3 -march=native
+
+echo "Running with optimization and native CPU..."
+hyperfine './obj/iris_nn'
+
+# Optimization + native CPU + inlining
+echo "Compiling with optimization, native CPU, and inlining..."
+rm obj/*
+gnatmake -P gusjo.gpr usage_examples/iris_nn.adb -cargs -O3 -march=native -gnatn
+
+echo "Running with optimization, native CPU, and inlining..."
+hyperfine './obj/iris_nn'
+
+# Same, but suppress runtime checks
+echo "Compiling with optimization, native CPU, inlining, and no runtime checks..."
+rm obj/*
+gnatmake -P gusjo.gpr usage_examples/iris_nn.adb -cargs -O3 -march=native -gnatn -gnatp
+
+echo "Running with optimization, native CPU, inlining, and no runtime checks..."
+hyperfine './obj/iris_nn'
