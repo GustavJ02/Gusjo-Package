@@ -48,6 +48,12 @@ package Gusjo.Ai.Nn is
    -- Y: one-hot (Out×B)
    procedure Backward_Batch (M    : in out Model;
                              X, Y : in     Matrix);
+
+   procedure Train_Batch(M: in out Model;
+                   X : in     Matrix;
+                   Y : in     Matrix;
+                   LR : in    Float := 0.01;
+                   Epochs : in Integer := 1000);
 private
 
    type Dense_Layer is

@@ -60,10 +60,7 @@ begin
       Add_Dense(Net, Inputs => 10, Outputs => 3, Act => Softmax, Random_Bias => True);
 
       Put_Line("Training NN classifier...");
-      for Epoch in 1 .. Epochs loop
-         Backward_Batch(Net, Train_X, Train_Y);
-         Step(Net, Learning_Rate => LR);
-      end loop;
+      Train_Batch(Net, Train_X, Train_Y, LR, Epochs);
 
       declare
          Test_Pred : constant Indices_Array := Argmax_Columns(Forward_Batch(Net, Test_X));

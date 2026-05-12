@@ -585,4 +585,16 @@ package body Gusjo.Ai.Nn is
       Delete(dZ);
    end Backward_Batch;
 
+   procedure Train_Batch(M: in out Model;
+                   X : in     Matrix;
+                   Y : in     Matrix;
+                   LR : in    Float := 0.01;
+                   Epochs : in Integer) is
+   begin
+      for Epoch in 1 .. Epochs loop
+         Backward_Batch(M, X, Y);
+         Step(M, Learning_Rate => LR);
+      end loop;
+   end Train_Batch;
+
 end Gusjo.Ai.Nn;
