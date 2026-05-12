@@ -1,3 +1,6 @@
+with Gusjo.Math;              use Gusjo.Math;
+with Gusjo.Math.Linalg;       use Gusjo.Math.Linalg;
+
 package Gusjo.Ai is
    -- Activations
    type Activation_Kind is (Sigmoid, ReLU, Softmax);
@@ -20,4 +23,9 @@ package Gusjo.Ai is
 
    function To_Activation_Kind(Item : in String) return Activation_Kind;
    function To_Loss_Kind(Item : in String) return Loss_Kind;
+
+   function Accuracy(Predicted, Actual : Indices_Array) return Float;
+
+   function Confusion_Matrix(Predicted, Actual : Indices_Array) return Matrix;
+
 end Gusjo.Ai;
