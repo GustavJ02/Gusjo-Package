@@ -44,3 +44,24 @@ real	0m0.268s
 user	0m0.264s
 sys	    0m0.004s
 ```
+
+Compiling an optimized version the runtime can be reduced futher:
+```bash
+gnatmake -P gusjo.gpr usage_examples/iris_nn.adb -cargs -O3 -march=native -gnatn -largs
+```
+And then run the same code again:
+```bash
+time ./obj/iris_nn
+```
+
+This now gives the following output:
+```
+Loading iris dataset...
+Splitting dataset into train/test...
+Training NN classifier...
+Final test accuracy: 0.9667
+
+real	0m0.057s
+user	0m0.050s
+sys	    0m0.008s
+```
