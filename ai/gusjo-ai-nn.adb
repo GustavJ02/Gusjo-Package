@@ -589,7 +589,7 @@ package body Gusjo.Ai.Nn is
                    X : in     Matrix;
                    Y : in     Matrix;
                    LR : in    Float := 0.01;
-                   Epochs : in Integer) is
+                   Epochs : in Integer := 1000) is
    begin
       for Epoch in 1 .. Epochs loop
          Backward_Batch(M, X, Y);
