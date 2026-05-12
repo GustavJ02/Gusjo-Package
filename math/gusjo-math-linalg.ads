@@ -14,6 +14,8 @@ package Gusjo.Math.Linalg is
    type Column_Vector_Array is array (Positive range <>) of Column_Vector;
 
    type Row_Vector_Array is array (Positive range <>) of Row_Vector;
+
+   type Float_Array is array (Natural range <>) of Float;
    
    ------------------ Get/Put Matrix ------------------
    
@@ -119,6 +121,8 @@ package Gusjo.Math.Linalg is
    function Column2(X0, X1 : Float) return Column_Vector;
 
    function Column3(X0, X1, X2 : Float) return Column_Vector;
+
+   function Column_Vector_From_Array(Values : in Float_Array) return Column_Vector;
 
    function Row1(X0 : Float) return Row_Vector;
 

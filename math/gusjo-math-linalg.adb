@@ -379,6 +379,18 @@ package body Gusjo.Math.Linalg is
       return R;
    end Column3;
 
+   function Column_Vector_From_Array(Values : in Float_Array) return Column_Vector is
+      M : Matrix := Zeros(Values'Length, 1);
+      R : Column_Vector;
+   begin
+      for I in Values'Range loop
+         M(I - Values'First + 1, 1) := Values(I);
+      end loop;
+      R := To_Column_Vector(M);
+      Delete(M);
+      return R;
+   end Column_Vector_From_Array;
+
    function Row1(X0 : Float) return Row_Vector is
       M : Matrix := Zeros(1, 1);
       R : Row_Vector;
