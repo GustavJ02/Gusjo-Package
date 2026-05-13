@@ -21,6 +21,9 @@ package Gusjo.IO is
      
    function Split(Item: in My_String;
 		  Char: in Character) return My_String_List;
+
+   function Split_CSV(Item: in My_String;
+		      Char: in Character) return My_String_List;
    
    procedure Put(Item: in My_String_List);
    
@@ -34,6 +37,8 @@ package Gusjo.IO is
    procedure Delete(List : in out My_String_List);
    
    function Length(Item : in My_String) return Integer;
+
+   function Is_Empty(Item : in My_String) return Boolean;
    
    function To_String(Item : in My_String) return String;
    
