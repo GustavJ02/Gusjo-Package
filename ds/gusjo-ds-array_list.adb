@@ -12,12 +12,12 @@ package body Gusjo.Ds.Array_List is
             Old_Data : Array_Access;
          begin
             Old_Data := List.Data;
-            List.Data := new Array_Type(1..List.Capacity * 2);
+            List.Data := new Array_Type(1..List.Capacity * 1.5);
             for I in 1..List.Capacity loop
                List.Data(I) := Old_Data(I);
             end loop;
             Free(Old_Data);
-            List.Capacity := List.Capacity * 2;
+            List.Capacity := List.Capacity * 1.5;
          end;
       end if;
       if List.Data = null then
