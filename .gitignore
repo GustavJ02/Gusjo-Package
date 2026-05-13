@@ -7,3 +7,7 @@ main
 .vscode
 obj/
 !obj/.gitkeep
+python_comparison/raw-img
+python_comparison/venv
+python_comparison/tmp
+python_comparison/animals.csv
