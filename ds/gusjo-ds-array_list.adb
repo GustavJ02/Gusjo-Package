@@ -4,28 +4,46 @@ package body Gusjo.Ds.Array_List is
 
    procedure Free is new Ada.Unchecked_Deallocation(Array_Type, Array_Access);
 
+   procedure Increase_Size(List: in out Array_List_Type;
+                           Least_Size: in Positive := 1) is
+      Old_Data: Array_Access;
+      New_Capacity : Positive := Positive'Max(List.Capacity * 1.5, Least_Size);
+   begin
+      Old_Data := List.Data;
+      List.Data := New Array_Type(1 .. New_Capacity);
+      for I in 1..List.Capacity loop
+         List.Data(I) := Old_Data(I);
+      end loop;
+      Free(Old_Data);
+      List.Capacity := New_Capacity;
+   end Increase_Size;
+
    procedure Insert(Item: in     Element_Type;
           List: in out Array_List_Type) is
    begin
-      if List.Size = List.Capacity then
-         declare
-            Old_Data : Array_Access;
-         begin
-            Old_Data := List.Data;
-            List.Data := new Array_Type(1..List.Capacity * 1.5);
-            for I in 1..List.Capacity loop
-               List.Data(I) := Old_Data(I);
-            end loop;
-            Free(Old_Data);
-            List.Capacity := List.Capacity * 1.5;
-         end;
-      end if;
       if List.Data = null then
          List.Data := new Array_Type(1..List.Capacity);
+      end if;
+      if List.Size = List.Capacity then
+         Increase_Size(List);
       end if;
       List.Data(List.Size + 1) := Item;
       List.Size := List.Size + 1;
    end Insert;
+
+   procedure Insert_at_index(Item: in     Element_Type;
+                            List: in out Array_List_Type;
+                            Index: in Positive) is
+   begin
+      if List.Data = null then
+         List.Data := new Array_Type(1..List.Capacity);
+      end if;
+      if Index > List.Capacity then
+         Increase_Size(List, Index);
+      end if;
+      List.Data(Index) := Item;
+      List.Size := List.Size + 1;
+   end Insert_at_index;
    
    function Get_Element_At_Index(List: in Array_List_Type;
              Index: in Integer) return Element_Type is
