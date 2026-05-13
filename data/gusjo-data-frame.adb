@@ -144,7 +144,7 @@ package body Gusjo.Data.Frame is
 
    procedure Load_CSV(File_Path : String; DF : out DataFrame_Type) is
       File : File_Type;
-      Line : String(1 .. 1000);
+      Line : My_String;
       Line_Len : Natural;
       Header_Fields : Field_Array(1 .. Max_Cols);
       Data_Fields : Field_Array(1 .. Max_Cols);
@@ -159,7 +159,7 @@ package body Gusjo.Data.Frame is
       Open(File, In_File, File_Path);
 
       while not End_Of_File(File) loop
-         Get_Line(File, Line, Line_Len);
+         Get_Line(File, Line);
 
          if Line_Len > 0 then
             if First_Row then

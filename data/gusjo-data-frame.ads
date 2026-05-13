@@ -16,7 +16,7 @@ package Gusjo.Data.Frame is
 
    --  Maximum size for columns and dataframe
    Max_Rows : constant Positive := 10000;
-   Max_Cols : constant Positive := 100;
+   Max_Cols : constant Positive := 20000;
 
    type Column_Reference is record
       Kind : Gusjo.Data.Column_Kind;
