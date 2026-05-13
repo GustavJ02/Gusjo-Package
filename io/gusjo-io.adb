@@ -29,30 +29,35 @@ package body Gusjo.IO is
       end loop;
    end Get_Correct;
    
-   procedure Fill_String(Item: in out My_String) is
+   procedure Fill_String(File: in File_Type; Item: in out My_String) is
    begin
       if not End_Of_Line then
 	 Item := new String_Entry;
-	 Get(Item.Char);
-	 Fill_String(Item.Next);
+	 Get(File, Item.Char);
+	 Fill_String(File, Item.Next);
       end if;
    end Fill_String;
    
-   procedure Fill_String_First(Item: in out My_String) is
+   procedure Fill_String_First(File: in File_Type; Item: in out My_String) is
    begin
       if Item = null then
 	 raise Null_Pointer_Exception;
       else
-	 Get_Correct(Item.Char);
-	 Fill_String(Item.Next);
+	 Get_Correct(File, Item.Char);
+	 Fill_String(File, Item.Next);
       end if;
    end Fill_String_First;
+
+   procedure Get_Line(File: in File_Type; Item: out My_String) is
+   begin
+      Item:= new String_Entry;
+      Fill_String_First(File, Item);
+      Skip_Line(File);
+   end Get_Line;
      
    procedure Get_Line(Item: out My_String) is
    begin
-      Item:= new String_Entry;
-      Fill_String_First(Item);
-      Skip_Line;
+      Get_Line(Standard_Input, Item);
    end Get_Line;
    
    procedure Put(Item: in My_String) is
@@ -90,6 +95,14 @@ package body Gusjo.IO is
    procedure Delete(Item : in out My_String) is
    begin
       Free(Item);
+   end Delete;
+
+   procedure Delete(List : in out My_String_List) is
+   begin
+      for I in List'Range loop
+         Delete(List(I));
+      end loop;
+      Free(List);
    end Delete;
    
    procedure Split_On_First(Char: in Character;
