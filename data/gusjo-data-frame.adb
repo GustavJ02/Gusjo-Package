@@ -623,4 +623,29 @@ package body Gusjo.Data.Frame is
       end;
    end Response_Labels;
 
+   procedure Delete(DF : in out DataFrame_Type) is
+   begin
+      for Col in 1 .. DF.Num_Cols loop
+         case DF.Columns(Col).Kind is
+            when Gusjo.Data.Integer_Type =>
+               if DF.Columns(Col).Int_Col /= null then
+                  Integer_Column.Delete(DF.Columns(Col).Int_Col.all);
+                  DF.Columns(Col).Int_Col := null;
+               end if;
+            when Gusjo.Data.Float_Type =>
+               if DF.Columns(Col).Float_Col /= null then
+                  Float_Column.Delete(DF.Columns(Col).Float_Col.all);
+                  DF.Columns(Col).Float_Col := null;
+               end if;
+            when Gusjo.Data.String_Type =>
+               if DF.Columns(Col).String_Col /= null then
+                  String_Column.Delete(DF.Columns(Col).String_Col.all);
+                  DF.Columns(Col).String_Col := null;
+               end if;
+         end case;
+      end loop;
+      DF.Num_Rows := 0;
+      DF.Num_Cols := 0;
+   end Delete;
+
 end Gusjo.Data.Frame;

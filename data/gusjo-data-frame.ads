@@ -115,6 +115,8 @@ package Gusjo.Data.Frame is
       DF : DataFrame_Type;
       Response_Col : Positive) return Indices_Array;
 
+   procedure Delete(DF : in out DataFrame_Type);
+
    --  Exceptions
    CSV_Error : exception;
    Index_Out_Of_Bounds : exception;
