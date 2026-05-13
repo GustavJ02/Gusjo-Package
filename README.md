@@ -38,7 +38,7 @@ gnatmake -P gusjo.gpr datastructure.adb
 If you prefer `gnatmake` without a project file, you need to pass the source directories manually, for example:
 
 ```bash
-gnatmake -I. -Iai -Imath -Ids -Iio -Iusage_examples nn.adb
+gnatmake -I. -Iai -Imath -Idata -Ids -Iio -Iusage_examples usage_examples/iris_nn.adb
 ```
 
 You can also compile an optimized version using the following command:
