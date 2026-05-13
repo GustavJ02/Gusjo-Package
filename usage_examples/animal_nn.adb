@@ -14,6 +14,9 @@ procedure Animal_Nn is
 begin
    Put_Line("Loading animals dataset...");
    Load_CSV("python_comparison/animals.csv", DF);
+   
+   Put_Line("=== Data Preview ===");
+   Display(DF, Max_Rows_Display => 5);
 
    Delete(DF);
 end Animal_Nn;
