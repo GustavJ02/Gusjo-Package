@@ -28,7 +28,7 @@ begin
    Load_CSV("iris.csv", DF);
 
    Put_Line("Splitting dataset into train/test...");
-   Splits := Split(DF, 0.8);
+   Splits := Split(DF, 0.6);
 
    declare
       Train_DF : constant DataFrame_Type := Train(Splits);
