@@ -46,4 +46,13 @@ package body Gusjo.Ds.Array_List is
       return List.Size = 0;
    end Isempty;
 
+   procedure Delete(List: in out Array_List_Type) is
+   begin
+      if List.Data /= null then
+         Free(List.Data);
+         List.Data := null;
+         List.Size := 0;
+      end if;
+   end Delete;
+
 end Gusjo.Ds.Array_List;

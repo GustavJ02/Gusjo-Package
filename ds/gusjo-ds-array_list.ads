@@ -17,6 +17,8 @@ package Gusjo.Ds.Array_List is
    function Size(List: in Array_List_Type) return Integer;
    
    function Isempty(List: in Array_List_Type) return Boolean;
+
+   procedure Delete(List: in out Array_List_Type);
    
 private
    
