@@ -1,5 +1,6 @@
 --  DataFrame implementation with CSV support
 with Ada.Text_Io; use Ada.Text_Io;
+with Ada.Environment_Variables;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
@@ -657,36 +658,274 @@ package body Gusjo.Data.Frame is
          raise CSV_Error with "Error reading CSV file";
    end Load_CSV;
 
-   procedure Display(DF : in DataFrame_Type; Max_Rows_Display : Natural := 10) is
+   procedure Display(
+      DF : in DataFrame_Type;
+      Max_Rows_Display : Natural := 10;
+      Max_Width : Natural := 0) is
       Rows_To_Show : constant Natural :=
          Natural'Min(Max_Rows_Display, DF.Num_Rows);
-   begin
-      --  Print header
-      for Col in 1 .. DF.Num_Cols loop
-         Put(To_String(DF.Column_Names(Col)));
-         if Col < DF.Num_Cols then
-            Put(", ");
-         end if;
-      end loop;
-      New_Line;
 
-      --  Print rows
-      for Row in 1 .. Rows_To_Show loop
-         for Col in 1 .. DF.Num_Cols loop
-            case DF.Columns(Col).Kind is
-               when Gusjo.Data.Integer_Type =>
-                  Put(Integer_Column.Get(DF.Columns(Col).Int_Col.all, Row)'Image);
-               when Gusjo.Data.Float_Type =>
-                  Put(Float_Column.Get(DF.Columns(Col).Float_Col.all, Row)'Image);
-               when Gusjo.Data.String_Type =>
-                  Put(To_String(String_Column.Get(DF.Columns(Col).String_Col.all, Row)));
-            end case;
-            if Col < DF.Num_Cols then
-               Put(", ");
+      Separator : constant String := ", ";
+      Ellipsis : constant String := "...";
+      Minimum_Display_Width : constant Natural := 20;
+
+      function Effective_Display_Width return Natural is
+      begin
+         if Max_Width > 0 then
+            return Natural'Max(Minimum_Display_Width, Max_Width);
+         end if;
+
+         if Ada.Environment_Variables.Exists("COLUMNS") then
+            declare
+               Value : constant String :=
+                  Trim(Ada.Environment_Variables.Value("COLUMNS"), Both);
+            begin
+               return Natural'Max(Minimum_Display_Width, Natural'Value(Value));
+            exception
+               when Constraint_Error =>
+                  null;
+            end;
+         end if;
+
+         return 80;
+      end Effective_Display_Width;
+
+      function Cell_Image(Row : Positive; Col : Positive) return String is
+      begin
+         case DF.Columns(Col).Kind is
+            when Gusjo.Data.Integer_Type =>
+               return Integer_Column.Get(DF.Columns(Col).Int_Col.all, Row)'Image;
+            when Gusjo.Data.Float_Type =>
+               return Float_Column.Get(DF.Columns(Col).Float_Col.all, Row)'Image;
+            when Gusjo.Data.String_Type =>
+               return To_String(String_Column.Get(DF.Columns(Col).String_Col.all, Row));
+         end case;
+      end Cell_Image;
+   begin
+      if DF.Num_Cols = 0 then
+         Put_Line("(empty dataframe)");
+         return;
+      end if;
+
+      declare
+         type Column_Width_Array is array (Positive range <>) of Natural;
+
+         Column_Widths : Column_Width_Array(1 .. DF.Num_Cols);
+         Display_Width : constant Natural := Effective_Display_Width;
+
+         function Full_Line_Length return Natural is
+            Result : Natural := 0;
+         begin
+            for Col in 1 .. DF.Num_Cols loop
+               if Col > 1 then
+                  Result := Result + Separator'Length;
+               end if;
+
+               Result := Result + Column_Widths(Col);
+            end loop;
+
+            return Result;
+         end Full_Line_Length;
+
+         function Truncated_Line_Length(
+            Left_Count : Natural;
+            Right_Count : Natural) return Natural is
+            Result : Natural := 0;
+            Parts : Natural := 0;
+
+            procedure Add_Part(Width : Natural) is
+            begin
+               if Parts > 0 then
+                  Result := Result + Separator'Length;
+               end if;
+
+               Result := Result + Width;
+               Parts := Parts + 1;
+            end Add_Part;
+         begin
+            for Col in 1 .. Left_Count loop
+               Add_Part(Column_Widths(Col));
+            end loop;
+
+            Add_Part(Ellipsis'Length);
+
+            if Right_Count > 0 then
+               for Col in DF.Num_Cols - Right_Count + 1 .. DF.Num_Cols loop
+                  Add_Part(Column_Widths(Col));
+               end loop;
             end if;
+
+            return Result;
+         end Truncated_Line_Length;
+
+         procedure Put_Separator(Parts : in out Natural) is
+         begin
+            if Parts > 0 then
+               Put(Separator);
+            end if;
+
+            Parts := Parts + 1;
+         end Put_Separator;
+
+         procedure Put_Header(
+            Show_All : Boolean;
+            Left_Count : Natural;
+            Right_Count : Natural) is
+            Parts : Natural := 0;
+
+            procedure Put_Name(Col : Positive) is
+            begin
+               Put_Separator(Parts);
+               Put(To_String(DF.Column_Names(Col)));
+            end Put_Name;
+         begin
+            if Show_All then
+               for Col in 1 .. DF.Num_Cols loop
+                  Put_Name(Col);
+               end loop;
+            else
+               for Col in 1 .. Left_Count loop
+                  Put_Name(Col);
+               end loop;
+
+               Put_Separator(Parts);
+               Put(Ellipsis);
+
+               if Right_Count > 0 then
+                  for Col in DF.Num_Cols - Right_Count + 1 .. DF.Num_Cols loop
+                     Put_Name(Col);
+                  end loop;
+               end if;
+            end if;
+
+            New_Line;
+         end Put_Header;
+
+         procedure Put_Row(
+            Row : Positive;
+            Show_All : Boolean;
+            Left_Count : Natural;
+            Right_Count : Natural) is
+            Parts : Natural := 0;
+
+            procedure Put_Cell(Col : Positive) is
+            begin
+               Put_Separator(Parts);
+               Put(Cell_Image(Row, Col));
+            end Put_Cell;
+         begin
+            if Show_All then
+               for Col in 1 .. DF.Num_Cols loop
+                  Put_Cell(Col);
+               end loop;
+            else
+               for Col in 1 .. Left_Count loop
+                  Put_Cell(Col);
+               end loop;
+
+               Put_Separator(Parts);
+               Put(Ellipsis);
+
+               if Right_Count > 0 then
+                  for Col in DF.Num_Cols - Right_Count + 1 .. DF.Num_Cols loop
+                     Put_Cell(Col);
+                  end loop;
+               end if;
+            end if;
+
+            New_Line;
+         end Put_Row;
+
+         Show_All : Boolean;
+         Left_Count : Natural := 1;
+         Right_Count : Natural := 1;
+      begin
+         for Col in 1 .. DF.Num_Cols loop
+            declare
+               Name : constant String := To_String(DF.Column_Names(Col));
+            begin
+               Column_Widths(Col) := Name'Length;
+            end;
          end loop;
-         New_Line;
-      end loop;
+
+         for Row in 1 .. Rows_To_Show loop
+            for Col in 1 .. DF.Num_Cols loop
+               declare
+                  Value : constant String := Cell_Image(Row, Col);
+               begin
+                  Column_Widths(Col) :=
+                     Natural'Max(Column_Widths(Col), Value'Length);
+               end;
+            end loop;
+         end loop;
+
+         Show_All := DF.Num_Cols <= 2
+            or else Full_Line_Length <= Display_Width;
+
+         if not Show_All then
+            while Left_Count + Right_Count < DF.Num_Cols - 1 loop
+               declare
+                  Prefer_Left : constant Boolean := Left_Count <= Right_Count;
+                  Can_Add_Left : constant Boolean :=
+                     Left_Count + Right_Count < DF.Num_Cols - 1;
+                  Can_Add_Right : constant Boolean := Can_Add_Left;
+                  Added : Boolean := False;
+
+                  procedure Try_Add_Left is
+                  begin
+                     if Can_Add_Left
+                       and then Truncated_Line_Length(
+                          Left_Count + 1,
+                          Right_Count) <= Display_Width
+                     then
+                        Left_Count := Left_Count + 1;
+                        Added := True;
+                     end if;
+                  end Try_Add_Left;
+
+                  procedure Try_Add_Right is
+                  begin
+                     if Can_Add_Right
+                       and then Truncated_Line_Length(
+                          Left_Count,
+                          Right_Count + 1) <= Display_Width
+                     then
+                        Right_Count := Right_Count + 1;
+                        Added := True;
+                     end if;
+                  end Try_Add_Right;
+               begin
+                  if Prefer_Left then
+                     Try_Add_Left;
+                     if not Added then
+                        Try_Add_Right;
+                     end if;
+                  else
+                     Try_Add_Right;
+                     if not Added then
+                        Try_Add_Left;
+                     end if;
+                  end if;
+
+                  exit when not Added;
+               end;
+            end loop;
+         end if;
+
+         Put_Header(Show_All, Left_Count, Right_Count);
+
+         --  Print rows
+         for Row in 1 .. Rows_To_Show loop
+            Put_Row(Row, Show_All, Left_Count, Right_Count);
+         end loop;
+
+         if not Show_All then
+            Put_Line(
+               "... (" &
+               Natural'Image(DF.Num_Cols - Left_Count - Right_Count) &
+               " more columns)");
+         end if;
+      end;
 
       if DF.Num_Rows > Rows_To_Show then
          Put_Line("... (" & Natural'Image(DF.Num_Rows - Rows_To_Show) & " more rows)");

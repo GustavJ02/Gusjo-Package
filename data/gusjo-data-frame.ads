@@ -59,7 +59,10 @@ package Gusjo.Data.Frame is
    procedure Load_CSV(File_Path : String; DF : in out DataFrame_Type);
 
    --  Display DataFrame (first N rows)
-   procedure Display(DF : in DataFrame_Type; Max_Rows_Display : Natural := 10);
+   procedure Display(
+      DF : in DataFrame_Type;
+      Max_Rows_Display : Natural := 10;
+      Max_Width : Natural := 0);
 
    --  Get number of rows
    function Row_Count(DF : DataFrame_Type) return Natural;
