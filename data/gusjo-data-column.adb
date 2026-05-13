@@ -5,6 +5,11 @@ package body Gusjo.Data.Column is
       Column_Storage.Insert(Item, Col.Data);
    end Append;
 
+   procedure Insert_At_Index(Col : in out Column_Type; Item : in Element_Type; Index : in Positive) is
+   begin
+      Column_Storage.Insert_at_index(Item, Col.Data, Index);
+   end Insert_At_Index;
+
    function Get(Col : in Column_Type; Row : in Positive) return Element_Type is
    begin
       return Column_Storage.Get_Element_At_Index(Col.Data, Row);
