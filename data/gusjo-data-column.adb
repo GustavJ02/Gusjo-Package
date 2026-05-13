@@ -20,4 +20,9 @@ package body Gusjo.Data.Column is
       return Column_Storage.Isempty(Col.Data);
    end Is_Empty;
 
+   procedure Delete(Col : in out Column_Type) is
+   begin
+      Column_Storage.Delete(Col.Data);
+   end Delete;
+
 end Gusjo.Data.Column;

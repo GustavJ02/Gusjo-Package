@@ -24,4 +24,6 @@ package Gusjo.Data.Column is
    --  Check if column is empty
    function Is_Empty(Col : in Column_Type) return Boolean;
 
+   procedure Delete(Col : in out Column_Type);
+
 end Gusjo.Data.Column;
