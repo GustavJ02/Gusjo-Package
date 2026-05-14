@@ -4,6 +4,7 @@ with Ada.Environment_Variables;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Strings.Unbounded.Aux;
 with Ada.Strings.Unbounded.Text_IO;
 with Ada.Numerics.Float_Random;
 with Ada.Unchecked_Deallocation;
@@ -63,25 +64,36 @@ package body Gusjo.Data.Frame is
 
    procedure Free_Column(Col : in out Column_Reference);
 
-   function CSV_Field_Count(Line : Unbounded_String) return Natural;
+   function CSV_Field_Count(Line : String) return Natural;
 
    function Next_CSV_Field(
-      Line : Unbounded_String;
+      Line : String;
       Position : in out Natural) return Field_Reference;
 
    function Field_To_String(
-      Line : Unbounded_String;
+      Line : String;
       Field : Field_Reference) return String;
 
    function Parse_Integer_Field(
-      Line : Unbounded_String;
+      Line : String;
       Field : Field_Reference) return Integer;
 
+   function Parse_Next_Integer_Field(
+      Line : String;
+      Position : in out Natural) return Integer;
+
    function Parse_Float_Field(
-      Line : Unbounded_String;
+      Line : String;
       Field : Field_Reference) return Float;
 
+   function Parse_Next_Float_Field(
+      Line : String;
+      Position : in out Natural) return Float;
+
    function Shuffled_Row_Indices(Count : Positive) return Row_Index_Array;
+
+   pragma Inline (Parse_Next_Integer_Field);
+   pragma Inline (Parse_Next_Float_Field);
 
    procedure Free_Column(Col : in out Column_Reference) is
    begin
@@ -109,6 +121,7 @@ package body Gusjo.Data.Frame is
       New_Capacity : Positive;
       New_Names : Column_Name_Array_Access;
       New_Columns : Column_Ref_Array_Access;
+      Current_Capacity : Natural := Natural'Max(1, DF.Capacity_Cols);
    begin
       if Required_Cols = 0 then
          return;
@@ -128,11 +141,13 @@ package body Gusjo.Data.Frame is
          return;
       end if;
 
-      New_Capacity := Positive(Natural'Min(
-         Max_Cols,
-         Natural'Max(
-            Required_Cols,
-            Natural'Max(1, DF.Capacity_Cols * 2))));
+      if Current_Capacity > Max_Cols / 2 then
+         New_Capacity := Positive(Required_Cols);
+      else
+         New_Capacity := Positive(Natural'Min(
+            Max_Cols,
+            Natural'Max(Required_Cols, Current_Capacity * 2)));
+      end if;
 
       New_Names := new Column_Name_Array(1 .. New_Capacity);
       New_Names.all := (others => Null_Unbounded_String);
@@ -161,8 +176,8 @@ package body Gusjo.Data.Frame is
       DF.Capacity_Cols := New_Capacity;
    end Ensure_Column_Capacity;
 
-   function CSV_Field_Count(Line : Unbounded_String) return Natural is
-      Len : constant Natural := Length(Line);
+   function CSV_Field_Count(Line : String) return Natural is
+      Len : constant Natural := Line'Length;
       Count : Natural := 1;
       In_Quotes : Boolean := False;
       I : Natural := 1;
@@ -173,12 +188,12 @@ package body Gusjo.Data.Frame is
 
       while I <= Len loop
          declare
-            C : constant Character := Element(Line, I);
+            C : constant Character := Line(I);
          begin
             if C = '"' then
                if In_Quotes
                  and then I < Len
-                 and then Element(Line, I + 1) = '"'
+                 and then Line(I + 1) = '"'
                then
                   I := I + 1;
                else
@@ -196,7 +211,7 @@ package body Gusjo.Data.Frame is
    end CSV_Field_Count;
 
    function Slice_Or_Empty(
-      Line : Unbounded_String;
+      Line : String;
       Low : Natural;
       High : Natural) return String is
    begin
@@ -204,13 +219,13 @@ package body Gusjo.Data.Frame is
          return "";
       end if;
 
-      return Slice(Line, Positive(Low), Positive(High));
+      return Line(Positive(Low) .. Positive(High));
    end Slice_Or_Empty;
 
    function Next_CSV_Field(
-      Line : Unbounded_String;
+      Line : String;
       Position : in out Natural) return Field_Reference is
-      Len : constant Natural := Length(Line);
+      Len : constant Natural := Line'Length;
       Field_Start : constant Natural := Position;
       In_Quotes : Boolean := False;
       I : Natural := Position;
@@ -231,14 +246,14 @@ package body Gusjo.Data.Frame is
 
       while I <= Len loop
          declare
-            C : constant Character := Element(Line, I);
+            C : constant Character := Line(I);
          begin
             if C = '"' then
                Needs_Unescape := True;
 
                if In_Quotes
                  and then I < Len
-                 and then Element(Line, I + 1) = '"'
+                 and then Line(I + 1) = '"'
                then
                   I := I + 1;
                else
@@ -266,7 +281,7 @@ package body Gusjo.Data.Frame is
    end Next_CSV_Field;
 
    function Field_To_String(
-      Line : Unbounded_String;
+      Line : String;
       Field : Field_Reference) return String is
       Result : Unbounded_String := Null_Unbounded_String;
       In_Quotes : Boolean := False;
@@ -282,12 +297,12 @@ package body Gusjo.Data.Frame is
 
       while I <= Field.Last loop
          declare
-            C : constant Character := Element(Line, I);
+            C : constant Character := Line(I);
          begin
             if C = '"' then
                if In_Quotes
                  and then I < Field.Last
-                 and then Element(Line, I + 1) = '"'
+                 and then Line(I + 1) = '"'
                then
                   Append(Result, '"');
                   I := I + 1;
@@ -306,7 +321,7 @@ package body Gusjo.Data.Frame is
    end Field_To_String;
 
    function Parse_Integer_Field(
-      Line : Unbounded_String;
+      Line : String;
       Field : Field_Reference) return Integer is
       I : Natural := Field.First;
       Sign : Integer := 1;
@@ -317,26 +332,26 @@ package body Gusjo.Data.Frame is
          return Integer'Value(Field_To_String(Line, Field));
       end if;
 
-      while I <= Field.Last and then Element(Line, I) = ' ' loop
+      while I <= Field.Last and then Line(I) = ' ' loop
          I := I + 1;
       end loop;
 
       if I <= Field.Last then
-         if Element(Line, I) = '-' then
+         if Line(I) = '-' then
             Sign := -1;
             I := I + 1;
-         elsif Element(Line, I) = '+' then
+         elsif Line(I) = '+' then
             I := I + 1;
          end if;
       end if;
 
-      while I <= Field.Last and then Element(Line, I) in '0' .. '9' loop
+      while I <= Field.Last and then Line(I) in '0' .. '9' loop
          Has_Digit := True;
-         Value := Value * 10 + Character'Pos(Element(Line, I)) - Character'Pos('0');
+         Value := Value * 10 + Character'Pos(Line(I)) - Character'Pos('0');
          I := I + 1;
       end loop;
 
-      while I <= Field.Last and then Element(Line, I) = ' ' loop
+      while I <= Field.Last and then Line(I) = ' ' loop
          I := I + 1;
       end loop;
 
@@ -347,8 +362,72 @@ package body Gusjo.Data.Frame is
       return Integer'Value(Field_To_String(Line, Field));
    end Parse_Integer_Field;
 
+   function Parse_Next_Integer_Field(
+      Line : String;
+      Position : in out Natural) return Integer is
+      Len : constant Natural := Line'Length;
+      Start : constant Natural := Position;
+      I : Natural := Position;
+      Sign : Integer := 1;
+      Value : Integer := 0;
+      Has_Digit : Boolean := False;
+   begin
+      if Position = 0 then
+         raise Constraint_Error;
+      end if;
+
+      if I <= Len and then Line(I) = '"' then
+         declare
+            Field : constant Field_Reference := Next_CSV_Field(Line, Position);
+         begin
+            return Parse_Integer_Field(Line, Field);
+         end;
+      end if;
+
+      while I <= Len and then Line(I) = ' ' loop
+         I := I + 1;
+      end loop;
+
+      if I <= Len then
+         if Line(I) = '-' then
+            Sign := -1;
+            I := I + 1;
+         elsif Line(I) = '+' then
+            I := I + 1;
+         end if;
+      end if;
+
+      while I <= Len and then Line(I) in '0' .. '9' loop
+         Has_Digit := True;
+         Value := Value * 10 + Character'Pos(Line(I)) - Character'Pos('0');
+         I := I + 1;
+      end loop;
+
+      while I <= Len and then Line(I) = ' ' loop
+         I := I + 1;
+      end loop;
+
+      if Has_Digit and then (I > Len or else Line(I) = ',') then
+         if I > Len then
+            Position := 0;
+         else
+            Position := I + 1;
+         end if;
+
+         return Sign * Value;
+      end if;
+
+      Position := Start;
+
+      declare
+         Field : constant Field_Reference := Next_CSV_Field(Line, Position);
+      begin
+         return Parse_Integer_Field(Line, Field);
+      end;
+   end Parse_Next_Integer_Field;
+
    function Parse_Float_Field(
-      Line : Unbounded_String;
+      Line : String;
       Field : Field_Reference) return Float is
       I : Natural := Field.First;
       Sign : Float := 1.0;
@@ -363,56 +442,56 @@ package body Gusjo.Data.Frame is
          return Float'Value(Field_To_String(Line, Field));
       end if;
 
-      while I <= Field.Last and then Element(Line, I) = ' ' loop
+      while I <= Field.Last and then Line(I) = ' ' loop
          I := I + 1;
       end loop;
 
       if I <= Field.Last then
-         if Element(Line, I) = '-' then
+         if Line(I) = '-' then
             Sign := -1.0;
             I := I + 1;
-         elsif Element(Line, I) = '+' then
+         elsif Line(I) = '+' then
             I := I + 1;
          end if;
       end if;
 
-      while I <= Field.Last and then Element(Line, I) in '0' .. '9' loop
+      while I <= Field.Last and then Line(I) in '0' .. '9' loop
          Has_Digit := True;
          Value := Value * 10.0 +
-            Float(Character'Pos(Element(Line, I)) - Character'Pos('0'));
+            Float(Character'Pos(Line(I)) - Character'Pos('0'));
          I := I + 1;
       end loop;
 
-      if I <= Field.Last and then Element(Line, I) = '.' then
+      if I <= Field.Last and then Line(I) = '.' then
          I := I + 1;
 
-         while I <= Field.Last and then Element(Line, I) in '0' .. '9' loop
+         while I <= Field.Last and then Line(I) in '0' .. '9' loop
             Has_Digit := True;
             Value := Value +
-               Scale * Float(Character'Pos(Element(Line, I)) - Character'Pos('0'));
+               Scale * Float(Character'Pos(Line(I)) - Character'Pos('0'));
             Scale := Scale * 0.1;
             I := I + 1;
          end loop;
       end if;
 
       if I <= Field.Last
-        and then (Element(Line, I) = 'e' or else Element(Line, I) = 'E')
+        and then (Line(I) = 'e' or else Line(I) = 'E')
       then
          I := I + 1;
 
          if I <= Field.Last then
-            if Element(Line, I) = '-' then
+            if Line(I) = '-' then
                Exp_Sign := -1;
                I := I + 1;
-            elsif Element(Line, I) = '+' then
+            elsif Line(I) = '+' then
                I := I + 1;
             end if;
          end if;
 
-         while I <= Field.Last and then Element(Line, I) in '0' .. '9' loop
+         while I <= Field.Last and then Line(I) in '0' .. '9' loop
             Has_Exp_Digit := True;
             Exponent := Exponent * 10 +
-               Character'Pos(Element(Line, I)) - Character'Pos('0');
+               Character'Pos(Line(I)) - Character'Pos('0');
             I := I + 1;
          end loop;
 
@@ -421,7 +500,7 @@ package body Gusjo.Data.Frame is
          end if;
       end if;
 
-      while I <= Field.Last and then Element(Line, I) = ' ' loop
+      while I <= Field.Last and then Line(I) = ' ' loop
          I := I + 1;
       end loop;
 
@@ -435,6 +514,121 @@ package body Gusjo.Data.Frame is
 
       return Float'Value(Field_To_String(Line, Field));
    end Parse_Float_Field;
+
+   function Parse_Next_Float_Field(
+      Line : String;
+      Position : in out Natural) return Float is
+      Len : constant Natural := Line'Length;
+      Start : constant Natural := Position;
+      I : Natural := Position;
+      Sign : Float := 1.0;
+      Value : Float := 0.0;
+      Scale : Float := 0.1;
+      Exponent : Integer := 0;
+      Exp_Sign : Integer := 1;
+      Has_Digit : Boolean := False;
+      Has_Exp_Digit : Boolean := False;
+   begin
+      if Position = 0 then
+         raise Constraint_Error;
+      end if;
+
+      if I <= Len and then Line(I) = '"' then
+         declare
+            Field : constant Field_Reference := Next_CSV_Field(Line, Position);
+         begin
+            return Parse_Float_Field(Line, Field);
+         end;
+      end if;
+
+      while I <= Len and then Line(I) = ' ' loop
+         I := I + 1;
+      end loop;
+
+      if I <= Len then
+         if Line(I) = '-' then
+            Sign := -1.0;
+            I := I + 1;
+         elsif Line(I) = '+' then
+            I := I + 1;
+         end if;
+      end if;
+
+      while I <= Len and then Line(I) in '0' .. '9' loop
+         Has_Digit := True;
+         Value := Value * 10.0 +
+            Float(Character'Pos(Line(I)) - Character'Pos('0'));
+         I := I + 1;
+      end loop;
+
+      if I <= Len and then Line(I) = '.' then
+         I := I + 1;
+
+         while I <= Len and then Line(I) in '0' .. '9' loop
+            Has_Digit := True;
+            Value := Value +
+               Scale * Float(Character'Pos(Line(I)) - Character'Pos('0'));
+            Scale := Scale * 0.1;
+            I := I + 1;
+         end loop;
+      end if;
+
+      if I <= Len and then (Line(I) = 'e' or else Line(I) = 'E') then
+         I := I + 1;
+
+         if I <= Len then
+            if Line(I) = '-' then
+               Exp_Sign := -1;
+               I := I + 1;
+            elsif Line(I) = '+' then
+               I := I + 1;
+            end if;
+         end if;
+
+         while I <= Len and then Line(I) in '0' .. '9' loop
+            Has_Exp_Digit := True;
+            Exponent := Exponent * 10 +
+               Character'Pos(Line(I)) - Character'Pos('0');
+            I := I + 1;
+         end loop;
+
+         if not Has_Exp_Digit then
+            Position := Start;
+
+            declare
+               Field : constant Field_Reference := Next_CSV_Field(Line, Position);
+            begin
+               return Parse_Float_Field(Line, Field);
+            end;
+         end if;
+      end if;
+
+      while I <= Len and then Line(I) = ' ' loop
+         I := I + 1;
+      end loop;
+
+      if Has_Digit and then (I > Len or else Line(I) = ',') then
+         if Exponent /= 0 then
+            Value := Value * (10.0 ** (Exp_Sign * Exponent));
+         end if;
+
+         if I > Len then
+            Position := 0;
+         else
+            Position := I + 1;
+         end if;
+
+         return Sign * Value;
+      end if;
+
+      Position := Start;
+
+      declare
+         Field : constant Field_Reference := Next_CSV_Field(Line, Position);
+      begin
+         return Parse_Float_Field(Line, Field);
+      end;
+   end Parse_Next_Float_Field;
 
    function Shuffled_Row_Indices(Count : Positive) return Row_Index_Array is
       Gen : Ada.Numerics.Float_Random.Generator;
@@ -518,7 +712,9 @@ package body Gusjo.Data.Frame is
       return Result;
    end Build_Subframe;
 
-   procedure Load_CSV(File_Path : String; DF : in out DataFrame_Type) is
+   procedure Load_CSV(File_Path : String;
+                      DF : in out DataFrame_Type;
+                      Headers : in Boolean := True) is
       File : File_Type;
       Line : Unbounded_String := Null_Unbounded_String;
       Header_Count : Natural := 0;
@@ -532,111 +728,169 @@ package body Gusjo.Data.Frame is
       while not End_Of_File(File) loop
          Ada.Strings.Unbounded.Text_IO.Get_Line(File, Line);
 
+         declare
+            Line_Data : Ada.Strings.Unbounded.Aux.Big_String_Access;
+            Line_Length : Natural;
+         begin
+            --  Avoid copying very wide CSV rows. This view is valid until Line
+            --  is modified by the next Get_Line call.
+            Ada.Strings.Unbounded.Aux.Get_String(Line, Line_Data, Line_Length);
 
-         if Length(Line) > 0 then
-            if First_Row then
-               --  Parse header
-               Header_Count := CSV_Field_Count(Line);
-
-               Ensure_Column_Capacity(DF, Header_Count);
-               DF.Num_Cols := Header_Count;
-
-               --  Initialize columns based on header
+            if Line_Length > 0 then
                declare
-                  Position : Natural := 1;
+                  Line_View : String renames Line_Data.all(1 .. Line_Length);
                begin
-                  for I in 1 .. Header_Count loop
+                  if First_Row and then Headers then
+                     --  Parse header
+                     Header_Count := CSV_Field_Count(Line_View);
+
+                     Ensure_Column_Capacity(DF, Header_Count);
+                     DF.Num_Cols := Header_Count;
+
+                     --  Initialize columns based on header
                      declare
-                        Field : constant Field_Reference :=
-                           Next_CSV_Field(Line, Position);
+                        Position : Natural := 1;
                      begin
-                        if not Field.Found then
-                           raise CSV_Error with "CSV header has too few columns";
-                        end if;
-
-                        DF.Column_Names(I) :=
-                          To_Unbounded_String(Field_To_String(Line, Field));
-                     end;
-                     --  Columns will be created on first data row
-                  end loop;
-               end;
-
-               First_Row := False;
-            else
-               Row_Num := Row_Num + 1;
-
-               declare
-                  Position : Natural := 1;
-               begin
-                  --  Parse and append data to columns
-                  for Col in 1 .. DF.Num_Cols loop
-                     declare
-                        Field : constant Field_Reference :=
-                           Next_CSV_Field(Line, Position);
-                     begin
-                        if not Field.Found then
-                           raise CSV_Error with
-                              "CSV row" & Natural'Image(Row_Num) &
-                              " has too few columns";
-                        end if;
-
-                        --  Initialize columns on first data row
-                        if Row_Num = 1 then
+                        for I in 1 .. Header_Count loop
                            declare
-                              Field_Value : constant String :=
-                                 Field_To_String(Line, Field);
-                              Val : constant Gusjo.Data.Value_Type :=
-                                 Gusjo.Data.Parse_Value(Field_Value);
+                              Field : constant Field_Reference :=
+                                 Next_CSV_Field(Line_View, Position);
                            begin
-                              case Val.Kind is
+                              if not Field.Found then
+                                 raise CSV_Error with "CSV header has too few columns";
+                              end if;
+
+                              DF.Column_Names(I) :=
+                                To_Unbounded_String(
+                                   Field_To_String(Line_View, Field));
+                           end;
+                           --  Columns will be created on first data row
+                        end loop;
+                     end;
+
+                     First_Row := False;
+                  else
+                     if First_Row then
+                        Header_Count := CSV_Field_Count(Line_View);
+
+                        Ensure_Column_Capacity(DF, Header_Count);
+                        DF.Num_Cols := Header_Count;
+
+                        for I in 1 .. Header_Count loop
+                           DF.Column_Names(I) :=
+                              To_Unbounded_String(
+                                 "column_" & Trim(Natural'Image(I), Both));
+                        end loop;
+
+                        First_Row := False;
+                     end if;
+
+                     Row_Num := Row_Num + 1;
+
+                     declare
+                        Position : Natural := 1;
+                     begin
+                        --  Parse and append data to columns
+                        for Col in 1 .. DF.Num_Cols loop
+                           if Position = 0 then
+                              raise CSV_Error with
+                                 "CSV row" & Natural'Image(Row_Num) &
+                                 " has too few columns";
+                           end if;
+
+                           --  Initialize columns on first data row
+                           if Row_Num = 1 then
+                              declare
+                                 Field : constant Field_Reference :=
+                                    Next_CSV_Field(Line_View, Position);
+                              begin
+                                 if not Field.Found then
+                                    raise CSV_Error with
+                                       "CSV row" & Natural'Image(Row_Num) &
+                                       " has too few columns";
+                                 end if;
+
+                                 declare
+                                    Field_Value : constant String :=
+                                       Field_To_String(Line_View, Field);
+                                    Val : constant Gusjo.Data.Value_Type :=
+                                       Gusjo.Data.Parse_Value(Field_Value);
+                                 begin
+                                    case Val.Kind is
+                                       when Gusjo.Data.Integer_Type =>
+                                          DF.Columns(Col).Kind :=
+                                             Gusjo.Data.Integer_Type;
+                                          DF.Columns(Col).Int_Col :=
+                                            new Integer_Column.Column_Type(Max_Rows);
+                                          Integer_Column.Append(
+                                             DF.Columns(Col).Int_Col.all,
+                                             Gusjo.Data.To_Integer(Val));
+                                       when Gusjo.Data.Float_Type =>
+                                          DF.Columns(Col).Kind :=
+                                             Gusjo.Data.Float_Type;
+                                          DF.Columns(Col).Float_Col :=
+                                            new Float_Column.Column_Type(Max_Rows);
+                                          Float_Column.Append(
+                                             DF.Columns(Col).Float_Col.all,
+                                             Gusjo.Data.To_Float(Val));
+                                       when Gusjo.Data.String_Type =>
+                                          DF.Columns(Col).Kind :=
+                                             Gusjo.Data.String_Type;
+                                          DF.Columns(Col).String_Col :=
+                                            new String_Column.Column_Type(Max_Rows);
+                                          String_Column.Append(
+                                             DF.Columns(Col).String_Col.all,
+                                             To_Unbounded_String(
+                                                Trim(Field_Value, Both)));
+                                    end case;
+                                 end;
+                              end;
+                           else
+                              case DF.Columns(Col).Kind is
                                  when Gusjo.Data.Integer_Type =>
-                                    DF.Columns(Col).Kind := Gusjo.Data.Integer_Type;
-                                    DF.Columns(Col).Int_Col :=
-                                      new Integer_Column.Column_Type(Max_Rows);
                                     Integer_Column.Append(
                                        DF.Columns(Col).Int_Col.all,
-                                       Gusjo.Data.To_Integer(Val));
+                                       Parse_Next_Integer_Field(
+                                          Line_View,
+                                          Position));
                                  when Gusjo.Data.Float_Type =>
-                                    DF.Columns(Col).Kind := Gusjo.Data.Float_Type;
-                                    DF.Columns(Col).Float_Col :=
-                                      new Float_Column.Column_Type(Max_Rows);
                                     Float_Column.Append(
                                        DF.Columns(Col).Float_Col.all,
-                                       Gusjo.Data.To_Float(Val));
+                                       Parse_Next_Float_Field(
+                                          Line_View,
+                                          Position));
                                  when Gusjo.Data.String_Type =>
-                                    DF.Columns(Col).Kind := Gusjo.Data.String_Type;
-                                    DF.Columns(Col).String_Col :=
-                                      new String_Column.Column_Type(Max_Rows);
-                                    String_Column.Append(
-                                       DF.Columns(Col).String_Col.all,
-                                       To_Unbounded_String(Trim(Field_Value, Both)));
+                                    declare
+                                       Field : constant Field_Reference :=
+                                          Next_CSV_Field(Line_View, Position);
+                                    begin
+                                       if not Field.Found then
+                                          raise CSV_Error with
+                                             "CSV row" & Natural'Image(Row_Num) &
+                                             " has too few columns";
+                                       end if;
+
+                                       String_Column.Append(
+                                          DF.Columns(Col).String_Col.all,
+                                          To_Unbounded_String(
+                                             Trim(
+                                                Field_To_String(Line_View, Field),
+                                                Both)));
+                                    end;
                               end case;
-                           end;
-                        else
-                           case DF.Columns(Col).Kind is
-                              when Gusjo.Data.Integer_Type =>
-                                 Integer_Column.Append(DF.Columns(Col).Int_Col.all,
-                                    Parse_Integer_Field(Line, Field));
-                              when Gusjo.Data.Float_Type =>
-                                 Float_Column.Append(DF.Columns(Col).Float_Col.all,
-                                    Parse_Float_Field(Line, Field));
-                              when Gusjo.Data.String_Type =>
-                                 String_Column.Append(DF.Columns(Col).String_Col.all,
-                                    To_Unbounded_String(
-                                       Trim(Field_To_String(Line, Field), Both)));
-                           end case;
+                           end if;
+                        end loop;
+
+                        if Position /= 0 then
+                           raise CSV_Error with
+                              "CSV row" & Natural'Image(Row_Num) &
+                              " has too many columns";
                         end if;
                      end;
-                  end loop;
-
-                  if Position /= 0 then
-                     raise CSV_Error with
-                        "CSV row" & Natural'Image(Row_Num) &
-                        " has too many columns";
                   end if;
                end;
             end if;
-         end if;
+         end;
       end loop;
 
       Close(File);
