@@ -10,10 +10,12 @@ package Gusjo.Ds.Array_List is
    
    procedure Insert(Item: in     Element_Type;
 		              List: in out Array_List_Type);
+   pragma Inline (Insert);
 
    procedure Insert_at_index(Item: in     Element_Type;
                             List: in out Array_List_Type;
                             Index: in Positive);
+   pragma Inline (Insert_at_index);
    
    function Get_Element_At_Index(List: in Array_List_Type;
 				                     Index: in Integer) return Element_Type;
