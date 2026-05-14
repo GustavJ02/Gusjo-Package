@@ -14,8 +14,10 @@ package Gusjo.Data.Column is
 
    --  Append an element to the column
    procedure Append(Col : in out Column_Type; Item : in Element_Type);
+   pragma Inline (Append);
 
    procedure Insert_At_Index(Col : in out Column_Type; Item : in Element_Type; Index : in Positive);
+   pragma Inline (Insert_At_Index);
 
    --  Get element at row index (1-based)
    function Get(Col : in Column_Type; Row : in Positive) return Element_Type;
