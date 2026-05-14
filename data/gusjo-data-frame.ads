@@ -14,9 +14,10 @@ package Gusjo.Data.Frame is
 
    use Integer_Column, Float_Column, String_Column;
 
-   --  Maximum size for columns and dataframe
+   --  Default row capacity and language-level column limit.
+   --  Column and row storage grows on the heap as needed.
    Max_Rows : constant Positive := 26180;
-   Max_Cols : constant Positive := 200000;
+   Max_Cols : constant Positive := Positive'Last;
 
    type Integer_Column_Access is access Integer_Column.Column_Type;
    type Float_Column_Access is access Float_Column.Column_Type;
@@ -56,7 +57,9 @@ package Gusjo.Data.Frame is
 
    --  Load CSV file into DataFrame with automatic type detection
    --  First row is treated as header (column names)
-   procedure Load_CSV(File_Path : String; DF : in out DataFrame_Type);
+   procedure Load_CSV(File_Path : String;
+                      DF : in out DataFrame_Type;
+                      Headers : in Boolean := True);
 
    --  Display DataFrame (first N rows)
    procedure Display(
