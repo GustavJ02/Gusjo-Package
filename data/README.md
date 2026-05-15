@@ -50,6 +50,7 @@ Defined in `gusjo-data-frame.ads` / `gusjo-data-frame.adb`.
 This package provides a heterogeneous dataframe:
 
 - CSV loading with optional headers.
+- binary save/load for typed dataframe cache files.
 - automatic type inference from the first data row.
 - typed accessors such as `Get_Integer`, `Get_Float`, and `Get_String`.
 - compact terminal display for very wide dataframes.
@@ -59,6 +60,32 @@ This package provides a heterogeneous dataframe:
 
 The dataframe stores data column-wise. This is convenient for tabular access,
 but very wide image datasets can create many columns and heavy memory traffic.
+
+## Binary Dataframe Cache
+
+`Save_Binary` and `Load_Binary` can be used after the first CSV parse to avoid
+parsing the same CSV repeatedly.
+
+Example workflow:
+
+```ada
+Load_CSV("python_comparison/animals.csv", DF);
+Save_Binary("python_comparison/animals.gdf", DF);
+
+-- Later runs:
+Load_Binary("python_comparison/animals.gdf", DF);
+```
+
+The binary file stores:
+
+- a magic header and format version;
+- dataframe row and column counts;
+- each column name and column kind;
+- all typed column values.
+
+This is a cache format, not a cross-language interchange format. Numeric
+values are written with Ada stream attributes, so files are intended to be read
+by compatible Gusjo/Ada builds on compatible machines.
 
 ## CSV Loader Design
 
