@@ -1,5 +1,6 @@
 with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Float_Text_IO; use Ada.Float_Text_IO;
+with Ada.Directories; use Ada.Directories;
 
 with Gusjo.Ai; use Gusjo.Ai;
 with Gusjo.Ai.Nn; use Gusjo.Ai.Nn;
