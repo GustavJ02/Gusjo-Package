@@ -6,11 +6,17 @@ with Gusjo.Ai.Nn; use Gusjo.Ai.Nn;
 with Gusjo.Math; use Gusjo.Math;
 with Gusjo.Data.Frame; use Gusjo.Data.Frame;
 with Gusjo.Math.Linalg; use Gusjo.Math.Linalg;
+with Gusjo.Math.Optimization; use Gusjo.Math.Optimization;
 
 procedure Iris_Nn is
    Feature_Cols : constant Gusjo.Data.Integer_Array := (2, 3, 4, 5);
-   Epochs : constant Positive := 1000;
-   LR : constant Float := 0.01;
+   Optimizer : constant Optimizer_Config := (
+      Method => Gradient_Descent,
+      Learning_Rate => 0.02,
+      Max_Epochs => 10000,
+      Gradient_Tolerance => 1.0E-5,
+      Loss_Tolerance => 1.0E-5,
+      Clip_Threshold => 0.0);
 
    procedure Print_Accuracy(Label : String;
                             Predicted, Actual : Indices_Array) is
@@ -23,9 +29,17 @@ procedure Iris_Nn is
    DF : DataFrame_Type;
    Splits : Train_Test_Split_Type;
    Net : Model;
+   Training_Result : Optimization_Result;
 begin
    Put_Line("Loading iris dataset...");
-   Load_CSV("iris.csv", DF);
+   If Exists("data/datafiles/iris.adadf") then
+      Load_Binary("data/datafiles/iris.adadf", DF);
+   else
+      Put_Line("Binary dataframe not found, loading from CSV...");
+      Load_CSV("python_comparison/iris.csv", DF);
+      Put_Line("Saving binary dataframe for faster loading next time...");
+      Save_Binary("data/datafiles/iris.adadf", DF);
+   end if;
 
    Put_Line("Splitting dataset into train/test...");
    Splits := Split(DF, 0.6);
@@ -48,7 +62,15 @@ begin
       Add_Dense(Net, Inputs => 10, Outputs => 3, Act => Softmax, Random_Bias => True);
 
       Put_Line("Training NN classifier...");
-      Train_Batch(Net, Train_X, Train_Y, LR, Epochs);
+      Train_Batch(Net, Train_X, Train_Y, Optimizer, Training_Result);
+      Put_Line("Epochs run: " & Natural'Image(Training_Result.Epochs_Run));
+      Put_Line("Stop reason: " & Stop_Reason'Image(Training_Result.Reason));
+      Put("Final train loss: ");
+      Put(Training_Result.Final_Loss, Fore => 2, Aft => 6, Exp => 0);
+      New_Line;
+      Put("Final gradient norm: ");
+      Put(Training_Result.Final_Gradient_Norm, Fore => 2, Aft => 6, Exp => 0);
+      New_Line;
 
       declare
          Test_Pred : constant Indices_Array := Argmax_Columns(Forward_Batch(Net, Test_X));
