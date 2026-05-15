@@ -22,6 +22,9 @@ package Gusjo.Data.Column is
    procedure Set_At_Index(Col : in out Column_Type; Item : in Element_Type; Index : in Positive);
    pragma Inline (Set_At_Index);
 
+   procedure Set_Preallocated_At_Index(Col : in Column_Type; Item : in Element_Type; Index : in Positive);
+   pragma Inline (Set_Preallocated_At_Index);
+
    --  Get element at row index (1-based)
    function Get(Col : in Column_Type; Row : in Positive) return Element_Type;
 

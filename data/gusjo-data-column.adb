@@ -15,6 +15,11 @@ package body Gusjo.Data.Column is
       Column_Storage.Set_at_index(Item, Col.Data, Index);
    end Set_At_Index;
 
+   procedure Set_Preallocated_At_Index(Col : in Column_Type; Item : in Element_Type; Index : in Positive) is
+   begin
+      Column_Storage.Set_preallocated_at_index(Item, Col.Data, Index);
+   end Set_Preallocated_At_Index;
+
    function Get(Col : in Column_Type; Row : in Positive) return Element_Type is
    begin
       return Column_Storage.Get_Element_At_Index(Col.Data, Row);
