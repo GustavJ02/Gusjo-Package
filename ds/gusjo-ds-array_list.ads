@@ -21,6 +21,11 @@ package Gusjo.Ds.Array_List is
                           List: in out Array_List_Type;
                           Index: in Positive);
    pragma Inline (Set_at_index);
+
+   procedure Set_preallocated_at_index(Item: in     Element_Type;
+                                       List: in     Array_List_Type;
+                                       Index: in Positive);
+   pragma Inline (Set_preallocated_at_index);
    
    function Get_Element_At_Index(List: in Array_List_Type;
 				                     Index: in Integer) return Element_Type;

@@ -57,6 +57,18 @@ package body Gusjo.Ds.Array_List is
       end if;
       List.Data(Index) := Item;
    end Set_at_index;
+
+   procedure Set_preallocated_at_index(Item: in     Element_Type;
+                                       List: in     Array_List_Type;
+                                       Index: in Positive) is
+   begin
+      if List.Data = null or else Index > List.Capacity then
+         raise Index_Out_Of_Bounds_Error with
+            "Index " & Index'Image & " exceeds preallocated capacity";
+      end if;
+
+      List.Data(Index) := Item;
+   end Set_preallocated_at_index;
    
    function Get_Element_At_Index(List: in Array_List_Type;
              Index: in Integer) return Element_Type is
