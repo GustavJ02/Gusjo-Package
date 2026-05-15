@@ -1,18 +1,46 @@
 with Ada.Integer_Text_IO;        use Ada.Integer_Text_IO;
 with Ada.Float_Text_IO;          use Ada.Float_Text_IO;
 
+with Ada.Environment_Variables;
 with Ada.Unchecked_Deallocation;
 with Ada.Numerics.Float_Random;
+with Ada.Strings;
+with Ada.Strings.Fixed;
+with System.Multiprocessors;
 
 with Ada.Numerics.Elementary_Functions;   use Ada.Numerics.Elementary_Functions;
 
 package body Gusjo.Math.Linalg is
+
+   Parallel_Matmul_Min_Ops : constant Long_Long_Integer := 1_000_000;
    
    procedure Free is new Ada.Unchecked_Deallocation(Matrix_Type, Matrix);
    
    procedure Free is new Ada.Unchecked_Deallocation(Matrix_Type, Row_Vector);
    
    procedure Free is new Ada.Unchecked_Deallocation(Matrix_Type, Column_Vector);
+
+   function Matmul_Worker_Count return Positive is
+      Default_Count : constant Positive :=
+         Positive(System.Multiprocessors.Number_Of_CPUs);
+   begin
+      if Ada.Environment_Variables.Exists("GUSJO_MATMUL_WORKERS") then
+         declare
+            Value : constant String :=
+               Ada.Strings.Fixed.Trim(
+                  Ada.Environment_Variables.Value("GUSJO_MATMUL_WORKERS"),
+                  Ada.Strings.Both);
+            Parsed : constant Positive := Positive'Value(Value);
+         begin
+            return Parsed;
+         exception
+            when Constraint_Error =>
+               null;
+         end;
+      end if;
+
+      return Default_Count;
+   end Matmul_Worker_Count;
    
    procedure Delete(Item : in out Matrix) is
    begin
@@ -693,7 +721,10 @@ package body Gusjo.Math.Linalg is
    
    function "*"(Left, Right : in Matrix) return Matrix is
       Result : Matrix;
-      Sum    : Float;
+      Left_Rows     : Positive;
+      Left_Cols     : Positive;
+      Right_Cols    : Positive;
+      Operation_Count : Long_Long_Integer;
    begin
       Null_Check(Left);
       Null_Check(Right);
@@ -701,20 +732,95 @@ package body Gusjo.Math.Linalg is
       if Cols(Left) /= Rows(Right) then
 	 raise Dimension_Error with "Number of collumns in left matrix must equal number of rows in right matrix";
       end if;
+
+      Left_Rows := Rows(Left);
+      Left_Cols := Cols(Left);
+      Right_Cols := Cols(Right);
+      Operation_Count :=
+         Long_Long_Integer(Left_Rows) *
+         Long_Long_Integer(Left_Cols) *
+         Long_Long_Integer(Right_Cols);
       
-      Result := new Matrix_Type(1..Rows(Left), 1..Cols(Right));
+      Result := new Matrix_Type(1..Left_Rows, 1..Right_Cols);
       
-      for I in Left'Range(1) loop
-	 for K in Right'range(2) loop
-	    Sum := 0.0;
-	    
-	    for J in Left'Range(2) loop
-	       Sum := Sum + Left(I, J) * Right(J, K);
-	    end loop;
-	    
-	    Result(I, K) := Sum;
-	 end loop;
-      end loop;
+      declare
+         procedure Multiply_Row(I : in Positive) is
+            Sum : Float;
+         begin
+            for K in 1 .. Right_Cols loop
+               Sum := 0.0;
+               for J in 1 .. Left_Cols loop
+                  Sum := Sum + Left(I, J) * Right(J, K);
+               end loop;
+               Result(I, K) := Sum;
+            end loop;
+         end Multiply_Row;
+
+         procedure Multiply_Serial is
+         begin
+            for I in 1 .. Left_Rows loop
+               Multiply_Row(I);
+            end loop;
+         end Multiply_Serial;
+
+      begin
+         if Operation_Count < Parallel_Matmul_Min_Ops then
+            Multiply_Serial;
+         else
+            declare
+               Worker_Count : constant Positive :=
+                  Positive'Min(Matmul_Worker_Count, Left_Rows);
+            begin
+               if Worker_Count = 1 then
+                  Multiply_Serial;
+               else
+                  declare
+                     protected type Row_Dispenser is
+                        procedure Next(Available : out Boolean;
+                                       Row       : out Positive);
+                     private
+                        Next_Row : Natural := 1;
+                     end Row_Dispenser;
+
+                     protected body Row_Dispenser is
+                        procedure Next(Available : out Boolean;
+                                       Row       : out Positive) is
+                        begin
+                           if Next_Row <= Left_Rows then
+                              Available := True;
+                              Row := Next_Row;
+                              Next_Row := Next_Row + 1;
+                           else
+                              Available := False;
+                              Row := 1;
+                           end if;
+                        end Next;
+                     end Row_Dispenser;
+
+                     Rows_To_Process : Row_Dispenser;
+
+                     task type Matmul_Worker;
+
+                     task body Matmul_Worker is
+                        Available : Boolean;
+                        Row       : Positive;
+                     begin
+                        loop
+                           Rows_To_Process.Next(Available, Row);
+                           exit when not Available;
+                           Multiply_Row(Row);
+                        end loop;
+                     end Matmul_Worker;
+
+                     Workers : array (1 .. Worker_Count) of Matmul_Worker;
+                  begin
+                     null;
+                  end;
+               end if;
+            end;
+         end if;
+      end;
+
       return Result;
       
    end "*";
