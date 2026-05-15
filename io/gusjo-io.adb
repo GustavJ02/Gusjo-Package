@@ -3,6 +3,21 @@ with Ada.Text_IO;                use Ada.Text_IO;
 with Ada.Unchecked_Deallocation;
 
 package body Gusjo.IO is
+
+   procedure Append_Character(Head : in out My_String;
+			      Tail : in out My_String;
+			      Char : in Character) is
+      New_Node : constant My_String :=
+        new String_Entry'(Char => Char, Next => null);
+   begin
+      if Head = null then
+	 Head := New_Node;
+      else
+	 Tail.Next := New_Node;
+      end if;
+
+      Tail := New_Node;
+   end Append_Character;
    
    procedure Put_Padding(Item: in Natural;
 			 Width: in Integer) is
@@ -29,38 +44,34 @@ package body Gusjo.IO is
       end loop;
    end Get_Correct;
    
-   procedure Fill_String(Item: in out My_String) is
+   procedure Get_Line(File: in File_Type; Item: out My_String) is
+      Tail : My_String := null;
+      Char : Character;
    begin
-      if not End_Of_Line then
-	 Item := new String_Entry;
-	 Get(Item.Char);
-	 Fill_String(Item.Next);
+      Item := null;
+
+      while not End_Of_File(File) and then not End_Of_Line(File) loop
+	 Get(File, Char);
+	 Append_Character(Item, Tail, Char);
+      end loop;
+
+      if not End_Of_File(File) then
+	 Skip_Line(File);
       end if;
-   end Fill_String;
-   
-   procedure Fill_String_First(Item: in out My_String) is
-   begin
-      if Item = null then
-	 raise Null_Pointer_Exception;
-      else
-	 Get_Correct(Item.Char);
-	 Fill_String(Item.Next);
-      end if;
-   end Fill_String_First;
+   end Get_Line;
      
    procedure Get_Line(Item: out My_String) is
    begin
-      Item:= new String_Entry;
-      Fill_String_First(Item);
-      Skip_Line;
+      Get_Line(Standard_Input, Item);
    end Get_Line;
    
    procedure Put(Item: in My_String) is
+      Tmp : My_String := Item;
    begin
-      Put(Item.Char);
-      if Item.Next /= null then
-	 Put(Item.Next);
-      end if;
+      while Tmp /= null loop
+	 Put(Tmp.Char);
+	 Tmp := Tmp.Next;
+      end loop;
    end Put;
    
    procedure Put_Line(Item : in My_String) is
@@ -71,87 +82,135 @@ package body Gusjo.IO is
    
    function Count(Char: in Character;
 		  Item: in My_String) return Integer is
+      Tmp : My_String := Item;
+      Result : Integer := 0;
    begin
-      if Item.Next /= null and Item.Char = Char then
-	 if Item.Next.Char = Char then
-	    return Count(Char, Item.Next);
-	 else
-	    return Count(Char, Item.Next) + 1;
+      while Tmp /= null loop
+	 if Tmp.Char = Char then
+	    Result := Result + 1;
 	 end if;
-      elsif Item.Next /= null then
-	 return Count(Char, Item.Next);
-      else
-	 return 0;
-      end if;
+
+	 Tmp := Tmp.Next;
+      end loop;
+
+      return Result;
    end Count;
    
    procedure Free is new Ada.Unchecked_Deallocation(String_Entry, My_String);
+   procedure Free_List is
+     new Ada.Unchecked_Deallocation(My_String_List_Type, My_String_List);
    
    procedure Delete(Item : in out My_String) is
+      Tmp : My_String;
    begin
-      Free(Item);
-   end Delete;
-   
-   procedure Split_On_First(Char: in Character;
-			    First: in out My_String;
-			    Remaining: in out My_String) is
-   begin
-      if First.Char = Char then
-	 Remaining := First.Next;
-	 Free(First);
-	 First := null;
-      elsif First.Next /= null then
-	Split_On_First(Char, First.Next, Remaining);
-      end if;
-   end Split_On_First;
-   
-   procedure Clear_Init_Char(Char: in Character;
-			     Item: in out My_String) is
-      Tmp: My_String;
-   begin
-      if Item.Char = Char then
-	 Tmp:= Item.Next;
+      while Item /= null loop
+	 Tmp := Item.Next;
 	 Free(Item);
 	 Item := Tmp;
-	 if Item.Next /= null then
-	    Clear_Init_Char(Char, Item);
-	 end if;
-      end if;
-   end Clear_Init_Char;
-   
-   procedure Split_First(Char: in Character;
-			 Remaining: in out My_String;
-			 First: out My_String) is
+      end loop;
+   end Delete;
+
+   procedure Delete(List : in out My_String_List) is
    begin
-      First := Remaining;
-      Split_On_First(Char, First, Remaining);
-      Clear_Init_Char(Char, Remaining);
-   end Split_First;
+      if List /= null then
+	 for I in List'Range loop
+	    Delete(List(I));
+	 end loop;
+
+	 Free_List(List);
+      end if;
+   end Delete;
    
    function Split(Item: in My_String;
 		  Char: in Character) return My_String_List is
-      
-      Nr_Of_Char: Integer;
       Result: My_String_List;
-      
-      First_String: My_String;
-      Remaining_String: My_String := Item;
-      
+      Tmp : My_String := Item;
+      Field_Index : Positive := 1;
+      Field_Tail : My_String := null;
    begin
-            
-      Nr_Of_Char := Count(Char, Remaining_String);
-      Result := new My_String_List_Type(1 .. (Nr_Of_Char + 1));
-      
-      for I in Result'Range loop
-	 Split_First(Char, Remaining_String, First_String);
-	 Result(I) := First_String;
+      Result := new My_String_List_Type(1 .. (Count(Char, Item) + 1));
+      Result.all := (others => null);
+
+      while Tmp /= null loop
+	 if Tmp.Char = Char then
+	    Field_Index := Field_Index + 1;
+	    Field_Tail := null;
+	 else
+	    Append_Character(Result(Field_Index), Field_Tail, Tmp.Char);
+	 end if;
+
+	 Tmp := Tmp.Next;
       end loop;
-      
+
       return Result;
    end Split;
+
+   function Split_CSV(Item: in My_String;
+		      Char: in Character) return My_String_List is
+      function Field_Count return Positive is
+	 Tmp : My_String := Item;
+	 In_Quotes : Boolean := False;
+	 Result : Positive := 1;
+      begin
+	 while Tmp /= null loop
+	    if Tmp.Char = '"' then
+	       if In_Quotes
+		 and then Tmp.Next /= null
+		 and then Tmp.Next.Char = '"'
+	       then
+		  Tmp := Tmp.Next;
+	       else
+		  In_Quotes := not In_Quotes;
+	       end if;
+	    elsif Tmp.Char = Char and then not In_Quotes then
+	       Result := Result + 1;
+	    end if;
+
+	    Tmp := Tmp.Next;
+	 end loop;
+
+	 return Result;
+      end Field_Count;
+
+      Result : My_String_List := new My_String_List_Type(1 .. Field_Count);
+      Tmp : My_String := Item;
+      Field_Index : Positive := 1;
+      Field_Tail : My_String := null;
+      In_Quotes : Boolean := False;
+   begin
+      Result.all := (others => null);
+
+      while Tmp /= null loop
+	 if Tmp.Char = '"' then
+	    if In_Quotes
+	      and then Tmp.Next /= null
+	      and then Tmp.Next.Char = '"'
+	    then
+	       Append_Character(Result(Field_Index), Field_Tail, '"');
+	       Tmp := Tmp.Next;
+	    else
+	       In_Quotes := not In_Quotes;
+	    end if;
+	 elsif Tmp.Char = Char and then not In_Quotes then
+	    Field_Index := Field_Index + 1;
+	    Field_Tail := null;
+	 else
+	    Append_Character(Result(Field_Index), Field_Tail, Tmp.Char);
+	 end if;
+
+	 Tmp := Tmp.Next;
+      end loop;
+
+      return Result;
+   end Split_CSV;
    
    procedure Put(Item: in My_String_List) is
    begin
+      if Item = null then
+	 Put("[]");
+	 return;
+      end if;
+
       Put('[');
       for I in Item'Range loop
 	 Put(Item(I));
@@ -163,13 +222,21 @@ package body Gusjo.IO is
    end Put;
    
    function Length(Item : in My_String) return Integer is
+      Tmp : My_String := Item;
+      Result : Integer := 0;
    begin
-      if Item = null then
-	 return 0;
-      else
-	 return 1 + Length(Item);
-      end if;
+      while Tmp /= null loop
+	 Result := Result + 1;
+	 Tmp := Tmp.Next;
+      end loop;
+
+      return Result;
    end Length;
+
+   function Is_Empty(Item : in My_String) return Boolean is
+   begin
+      return Item = null;
+   end Is_Empty;
    
    function To_String(Item : in My_String;
 		      Len  : in Integer) return String is
@@ -191,18 +258,11 @@ package body Gusjo.IO is
    end To_String;
    
    function To_My_String(Item : in String) return My_String is
-      Result, Tmp : My_String := null;
+      Result : My_String := null;
+      Tail : My_String := null;
    begin
-      Result := new String_Entry;
-      
-      for I in reverse Item'Range loop
-	 Result := new String_Entry;
-	 
-	 Result.Char := Item(I);
-	 Result.Next := Tmp;
-	 
-	 Tmp := Result;
-	 
+      for I in Item'Range loop
+	 Append_Character(Result, Tail, Item(I));
       end loop;
       
       return Result;

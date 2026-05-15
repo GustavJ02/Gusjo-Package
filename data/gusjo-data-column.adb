@@ -5,6 +5,21 @@ package body Gusjo.Data.Column is
       Column_Storage.Insert(Item, Col.Data);
    end Append;
 
+   procedure Insert_At_Index(Col : in out Column_Type; Item : in Element_Type; Index : in Positive) is
+   begin
+      Column_Storage.Insert_at_index(Item, Col.Data, Index);
+   end Insert_At_Index;
+
+   procedure Set_At_Index(Col : in out Column_Type; Item : in Element_Type; Index : in Positive) is
+   begin
+      Column_Storage.Set_at_index(Item, Col.Data, Index);
+   end Set_At_Index;
+
+   procedure Set_Preallocated_At_Index(Col : in Column_Type; Item : in Element_Type; Index : in Positive) is
+   begin
+      Column_Storage.Set_preallocated_at_index(Item, Col.Data, Index);
+   end Set_Preallocated_At_Index;
+
    function Get(Col : in Column_Type; Row : in Positive) return Element_Type is
    begin
       return Column_Storage.Get_Element_At_Index(Col.Data, Row);
@@ -14,6 +29,11 @@ package body Gusjo.Data.Column is
    begin
       return Column_Storage.Size(Col.Data);
    end Row_Count;
+
+   procedure Set_Row_Count(Col : in out Column_Type; Count : in Natural) is
+   begin
+      Column_Storage.Set_Size(Col.Data, Count);
+   end Set_Row_Count;
 
    function Is_Empty(Col : in Column_Type) return Boolean is
    begin

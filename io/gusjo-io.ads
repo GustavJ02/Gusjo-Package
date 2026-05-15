@@ -1,4 +1,5 @@
-with Gusjo;  use Gusjo;
+with Ada.Text_IO;    use Ada.Text_IO;
+with Gusjo;          use Gusjo;
 
 package Gusjo.IO is
    
@@ -11,6 +12,8 @@ package Gusjo.IO is
      access My_String_List_Type;
    
    procedure Get_Line(Item: out My_String);
+
+   procedure Get_Line(File: in File_Type; Item: out My_String);
    
    procedure Put(Item: in My_String);
    
@@ -18,6 +21,9 @@ package Gusjo.IO is
      
    function Split(Item: in My_String;
 		  Char: in Character) return My_String_List;
+
+   function Split_CSV(Item: in My_String;
+		      Char: in Character) return My_String_List;
    
    procedure Put(Item: in My_String_List);
    
@@ -27,8 +33,12 @@ package Gusjo.IO is
    procedure Get_Correct(Item: out Character);
    
    procedure Delete(Item : in out My_String);
+
+   procedure Delete(List : in out My_String_List);
    
    function Length(Item : in My_String) return Integer;
+
+   function Is_Empty(Item : in My_String) return Boolean;
    
    function To_String(Item : in My_String) return String;
    

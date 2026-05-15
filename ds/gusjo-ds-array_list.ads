@@ -10,11 +10,30 @@ package Gusjo.Ds.Array_List is
    
    procedure Insert(Item: in     Element_Type;
 		              List: in out Array_List_Type);
+   pragma Inline (Insert);
+
+   procedure Insert_at_index(Item: in     Element_Type;
+                            List: in out Array_List_Type;
+                            Index: in Positive);
+   pragma Inline (Insert_at_index);
+
+   procedure Set_at_index(Item: in     Element_Type;
+                          List: in out Array_List_Type;
+                          Index: in Positive);
+   pragma Inline (Set_at_index);
+
+   procedure Set_preallocated_at_index(Item: in     Element_Type;
+                                       List: in     Array_List_Type;
+                                       Index: in Positive);
+   pragma Inline (Set_preallocated_at_index);
    
    function Get_Element_At_Index(List: in Array_List_Type;
 				                     Index: in Integer) return Element_Type;
    
    function Size(List: in Array_List_Type) return Integer;
+
+   procedure Set_Size(List: in out Array_List_Type;
+                      New_Size: in Natural);
    
    function Isempty(List: in Array_List_Type) return Boolean;
 

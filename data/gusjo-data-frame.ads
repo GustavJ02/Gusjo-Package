@@ -14,25 +14,34 @@ package Gusjo.Data.Frame is
 
    use Integer_Column, Float_Column, String_Column;
 
-   --  Maximum size for columns and dataframe
-   Max_Rows : constant Positive := 10000;
-   Max_Cols : constant Positive := 100;
+   --  Default row capacity and language-level column limit.
+   --  Column and row storage grows on the heap as needed.
+   Max_Rows : constant Positive := 26180;
+   Max_Cols : constant Positive := Positive'Last;
+
+   type Integer_Column_Access is access Integer_Column.Column_Type;
+   type Float_Column_Access is access Float_Column.Column_Type;
+   type String_Column_Access is access String_Column.Column_Type;
 
    type Column_Reference is record
-      Kind : Gusjo.Data.Column_Kind;
-      Int_Col : access Integer_Column.Column_Type;
-      Float_Col : access Float_Column.Column_Type;
-      String_Col : access String_Column.Column_Type;
+      Kind : Gusjo.Data.Column_Kind := Gusjo.Data.String_Type;
+      Int_Col : Integer_Column_Access := null;
+      Float_Col : Float_Column_Access := null;
+      String_Col : String_Column_Access := null;
    end record;
 
-   type Column_Name_Array is array(1 .. Max_Cols) of Unbounded_String;
-   type Column_Ref_Array is array(1 .. Max_Cols) of Column_Reference;
+   type Column_Name_Array is array(Positive range <>) of Unbounded_String;
+   type Column_Name_Array_Access is access Column_Name_Array;
+
+   type Column_Ref_Array is array(Positive range <>) of Column_Reference;
+   type Column_Ref_Array_Access is access Column_Ref_Array;
 
    type DataFrame_Type is record
       Num_Rows : Natural := 0;
       Num_Cols : Natural := 0;
-      Column_Names : Column_Name_Array;
-      Columns : Column_Ref_Array;
+      Capacity_Cols : Natural := 0;
+      Column_Names : Column_Name_Array_Access := null;
+      Columns : Column_Ref_Array_Access := null;
    end record;
 
    type Train_Test_Split_Type is record
@@ -48,10 +57,15 @@ package Gusjo.Data.Frame is
 
    --  Load CSV file into DataFrame with automatic type detection
    --  First row is treated as header (column names)
-   procedure Load_CSV(File_Path : String; DF : out DataFrame_Type);
+   procedure Load_CSV(File_Path : String;
+                      DF : in out DataFrame_Type;
+                      Headers : in Boolean := True);
 
    --  Display DataFrame (first N rows)
-   procedure Display(DF : in DataFrame_Type; Max_Rows_Display : Natural := 10);
+   procedure Display(
+      DF : in DataFrame_Type;
+      Max_Rows_Display : Natural := 10;
+      Max_Width : Natural := 0);
 
    --  Get number of rows
    function Row_Count(DF : DataFrame_Type) return Natural;
