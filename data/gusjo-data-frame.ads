@@ -61,6 +61,14 @@ package Gusjo.Data.Frame is
                       DF : in out DataFrame_Type;
                       Headers : in Boolean := True);
 
+   --  Save/load a typed binary dataframe cache.
+   --  This preserves column names, column kinds, row count, and cell values.
+   procedure Save_Binary(File_Path : String;
+                         DF : in DataFrame_Type);
+
+   procedure Load_Binary(File_Path : String;
+                         DF : in out DataFrame_Type);
+
    --  Display DataFrame (first N rows)
    procedure Display(
       DF : in DataFrame_Type;
@@ -133,6 +141,7 @@ package Gusjo.Data.Frame is
 
    --  Exceptions
    CSV_Error : exception;
+   DataFrame_IO_Error : exception;
    Index_Out_Of_Bounds : exception;
 
 end Gusjo.Data.Frame;

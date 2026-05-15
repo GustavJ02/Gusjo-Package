@@ -7,8 +7,10 @@ with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Strings.Unbounded.Aux;
 with Ada.Strings.Unbounded.Text_IO;
+with Ada.Streams.Stream_IO;
 with Ada.Numerics.Float_Random;
 with Ada.Unchecked_Deallocation;
+with Interfaces;
 with System.Multiprocessors;
 
 with Gusjo.Math; use Gusjo.Math;
@@ -18,6 +20,13 @@ package body Gusjo.Data.Frame is
 
    use Ada.Strings;
    use Ada.Strings.Fixed;
+   use type Interfaces.Unsigned_32;
+   use type Interfaces.Unsigned_64;
+
+   package Binary_IO renames Ada.Streams.Stream_IO;
+
+   Binary_Magic : constant String := "GUSJODF";
+   Binary_Version : constant Interfaces.Unsigned_32 := 1;
 
    type Row_Index_Array is array (Positive range <>) of Positive;
 
@@ -69,6 +78,23 @@ package body Gusjo.Data.Frame is
    procedure Set_Column_Row_Counts(
       DF : in out DataFrame_Type;
       Count : Natural);
+
+   procedure Write_Binary_String(
+      Stream : Binary_IO.Stream_Access;
+      Value : String);
+
+   function Read_Binary_String(
+      Stream : Binary_IO.Stream_Access) return String;
+
+   function Column_Kind_Code(
+      Kind : Gusjo.Data.Column_Kind) return Interfaces.Unsigned_8;
+
+   function Column_Kind_From_Code(
+      Code : Interfaces.Unsigned_8) return Gusjo.Data.Column_Kind;
+
+   function To_Natural_From_Binary(
+      Value : Interfaces.Unsigned_64;
+      Label : String) return Natural;
 
    function CSV_Worker_Count return Positive;
 
@@ -154,6 +180,82 @@ package body Gusjo.Data.Frame is
          end case;
       end loop;
    end Set_Column_Row_Counts;
+
+   procedure Write_Binary_String(
+      Stream : Binary_IO.Stream_Access;
+      Value : String) is
+      Length : constant Interfaces.Unsigned_64 :=
+         Interfaces.Unsigned_64(Value'Length);
+   begin
+      Interfaces.Unsigned_64'Write(Stream, Length);
+
+      if Value'Length > 0 then
+         String'Write(Stream, Value);
+      end if;
+   end Write_Binary_String;
+
+   function Read_Binary_String(
+      Stream : Binary_IO.Stream_Access) return String is
+      Length : Interfaces.Unsigned_64;
+   begin
+      Interfaces.Unsigned_64'Read(Stream, Length);
+
+      if Length > Interfaces.Unsigned_64(Natural'Last) then
+         raise DataFrame_IO_Error with "Binary string length is too large";
+      end if;
+
+      if Length = 0 then
+         return "";
+      end if;
+
+      declare
+         Result : String(1 .. Natural(Length));
+      begin
+         String'Read(Stream, Result);
+         return Result;
+      end;
+   end Read_Binary_String;
+
+   function Column_Kind_Code(
+      Kind : Gusjo.Data.Column_Kind) return Interfaces.Unsigned_8 is
+   begin
+      case Kind is
+         when Gusjo.Data.Integer_Type =>
+            return 1;
+         when Gusjo.Data.Float_Type =>
+            return 2;
+         when Gusjo.Data.String_Type =>
+            return 3;
+      end case;
+   end Column_Kind_Code;
+
+   function Column_Kind_From_Code(
+      Code : Interfaces.Unsigned_8) return Gusjo.Data.Column_Kind is
+   begin
+      case Code is
+         when 1 =>
+            return Gusjo.Data.Integer_Type;
+         when 2 =>
+            return Gusjo.Data.Float_Type;
+         when 3 =>
+            return Gusjo.Data.String_Type;
+         when others =>
+            raise DataFrame_IO_Error with
+               "Unknown binary dataframe column kind";
+      end case;
+   end Column_Kind_From_Code;
+
+   function To_Natural_From_Binary(
+      Value : Interfaces.Unsigned_64;
+      Label : String) return Natural is
+   begin
+      if Value > Interfaces.Unsigned_64(Natural'Last) then
+         raise DataFrame_IO_Error with
+            "Binary dataframe " & Label & " value is too large";
+      end if;
+
+      return Natural(Value);
+   end To_Natural_From_Binary;
 
    function CSV_Worker_Count return Positive is
       Default_Count : constant Positive :=
@@ -1215,6 +1317,240 @@ package body Gusjo.Data.Frame is
          Delete(DF);
          raise CSV_Error with "Error reading CSV file";
    end Load_CSV;
+
+   procedure Save_Binary(File_Path : String;
+                         DF : in DataFrame_Type) is
+      File : Binary_IO.File_Type;
+      Stream : Binary_IO.Stream_Access;
+   begin
+      if DF.Num_Cols > 0
+        and then (DF.Column_Names = null or else DF.Columns = null)
+      then
+         raise DataFrame_IO_Error with
+            "Cannot save dataframe with uninitialized column storage";
+      end if;
+
+      Binary_IO.Create(File, Binary_IO.Out_File, File_Path);
+      Stream := Binary_IO.Stream(File);
+
+      String'Write(Stream, Binary_Magic);
+      Interfaces.Unsigned_32'Write(Stream, Binary_Version);
+      Interfaces.Unsigned_64'Write(
+         Stream,
+         Interfaces.Unsigned_64(DF.Num_Rows));
+      Interfaces.Unsigned_64'Write(
+         Stream,
+         Interfaces.Unsigned_64(DF.Num_Cols));
+
+      for Col in 1 .. DF.Num_Cols loop
+         Interfaces.Unsigned_8'Write(
+            Stream,
+            Column_Kind_Code(DF.Columns(Col).Kind));
+         Write_Binary_String(Stream, To_String(DF.Column_Names(Col)));
+      end loop;
+
+      for Col in 1 .. DF.Num_Cols loop
+         case DF.Columns(Col).Kind is
+            when Gusjo.Data.Integer_Type =>
+               if DF.Columns(Col).Int_Col = null then
+                  raise DataFrame_IO_Error with
+                     "Integer column storage is missing";
+               end if;
+
+               for Row in 1 .. DF.Num_Rows loop
+                  Integer'Write(
+                     Stream,
+                     Integer_Column.Get(DF.Columns(Col).Int_Col.all, Row));
+               end loop;
+
+            when Gusjo.Data.Float_Type =>
+               if DF.Columns(Col).Float_Col = null then
+                  raise DataFrame_IO_Error with
+                     "Float column storage is missing";
+               end if;
+
+               for Row in 1 .. DF.Num_Rows loop
+                  Float'Write(
+                     Stream,
+                     Float_Column.Get(DF.Columns(Col).Float_Col.all, Row));
+               end loop;
+
+            when Gusjo.Data.String_Type =>
+               if DF.Columns(Col).String_Col = null then
+                  raise DataFrame_IO_Error with
+                     "String column storage is missing";
+               end if;
+
+               for Row in 1 .. DF.Num_Rows loop
+                  Write_Binary_String(
+                     Stream,
+                     To_String(
+                        String_Column.Get(
+                           DF.Columns(Col).String_Col.all,
+                           Row)));
+               end loop;
+         end case;
+      end loop;
+
+      Binary_IO.Close(File);
+   exception
+      when DataFrame_IO_Error =>
+         if Binary_IO.Is_Open(File) then
+            Binary_IO.Close(File);
+         end if;
+
+         raise;
+      when others =>
+         if Binary_IO.Is_Open(File) then
+            Binary_IO.Close(File);
+         end if;
+
+         raise DataFrame_IO_Error with
+            "Error writing binary dataframe: " & File_Path;
+   end Save_Binary;
+
+   procedure Load_Binary(File_Path : String;
+                         DF : in out DataFrame_Type) is
+      File : Binary_IO.File_Type;
+      Stream : Binary_IO.Stream_Access;
+      Magic : String(1 .. Binary_Magic'Length);
+      Version : Interfaces.Unsigned_32;
+      Row_Count_Value : Interfaces.Unsigned_64;
+      Col_Count_Value : Interfaces.Unsigned_64;
+      Loaded_Rows : Natural;
+      Loaded_Cols : Natural;
+      Row_Capacity : Positive;
+   begin
+      Delete(DF);
+
+      Binary_IO.Open(File, Binary_IO.In_File, File_Path);
+      Stream := Binary_IO.Stream(File);
+
+      String'Read(Stream, Magic);
+      if Magic /= Binary_Magic then
+         raise DataFrame_IO_Error with
+            "File is not a Gusjo binary dataframe";
+      end if;
+
+      Interfaces.Unsigned_32'Read(Stream, Version);
+      if Version /= Binary_Version then
+         raise DataFrame_IO_Error with
+            "Unsupported binary dataframe version";
+      end if;
+
+      Interfaces.Unsigned_64'Read(Stream, Row_Count_Value);
+      Interfaces.Unsigned_64'Read(Stream, Col_Count_Value);
+
+      Loaded_Rows := To_Natural_From_Binary(Row_Count_Value, "row count");
+      Loaded_Cols := To_Natural_From_Binary(Col_Count_Value, "column count");
+
+      if Loaded_Cols > Max_Cols then
+         raise DataFrame_IO_Error with
+            "Binary dataframe has too many columns";
+      end if;
+
+      Row_Capacity := Positive(Natural'Max(1, Loaded_Rows));
+
+      Ensure_Column_Capacity(DF, Loaded_Cols);
+      DF.Num_Cols := Loaded_Cols;
+      DF.Num_Rows := Loaded_Rows;
+
+      for Col in 1 .. Loaded_Cols loop
+         declare
+            Kind_Code : Interfaces.Unsigned_8;
+            Kind : Gusjo.Data.Column_Kind;
+         begin
+            Interfaces.Unsigned_8'Read(Stream, Kind_Code);
+            Kind := Column_Kind_From_Code(Kind_Code);
+
+            DF.Column_Names(Col) :=
+               To_Unbounded_String(Read_Binary_String(Stream));
+            DF.Columns(Col).Kind := Kind;
+
+            case Kind is
+               when Gusjo.Data.Integer_Type =>
+                  DF.Columns(Col).Int_Col :=
+                     new Integer_Column.Column_Type(Row_Capacity);
+               when Gusjo.Data.Float_Type =>
+                  DF.Columns(Col).Float_Col :=
+                     new Float_Column.Column_Type(Row_Capacity);
+               when Gusjo.Data.String_Type =>
+                  DF.Columns(Col).String_Col :=
+                     new String_Column.Column_Type(Row_Capacity);
+            end case;
+         end;
+      end loop;
+
+      Set_Column_Row_Counts(DF, Loaded_Rows);
+
+      for Col in 1 .. Loaded_Cols loop
+         case DF.Columns(Col).Kind is
+            when Gusjo.Data.Integer_Type =>
+               for Row in 1 .. Loaded_Rows loop
+                  declare
+                     Value : Integer;
+                  begin
+                     Integer'Read(Stream, Value);
+                     Integer_Column.Set_Preallocated_At_Index(
+                        DF.Columns(Col).Int_Col.all,
+                        Value,
+                        Row);
+                  end;
+               end loop;
+
+            when Gusjo.Data.Float_Type =>
+               for Row in 1 .. Loaded_Rows loop
+                  declare
+                     Value : Float;
+                  begin
+                     Float'Read(Stream, Value);
+                     Float_Column.Set_Preallocated_At_Index(
+                        DF.Columns(Col).Float_Col.all,
+                        Value,
+                        Row);
+                  end;
+               end loop;
+
+            when Gusjo.Data.String_Type =>
+               for Row in 1 .. Loaded_Rows loop
+                  declare
+                     Value : constant String := Read_Binary_String(Stream);
+                  begin
+                     String_Column.Set_Preallocated_At_Index(
+                        DF.Columns(Col).String_Col.all,
+                        To_Unbounded_String(Value),
+                        Row);
+                  end;
+               end loop;
+         end case;
+      end loop;
+
+      Binary_IO.Close(File);
+   exception
+      when Name_Error =>
+         if Binary_IO.Is_Open(File) then
+            Binary_IO.Close(File);
+         end if;
+
+         Delete(DF);
+         raise DataFrame_IO_Error with
+            "Binary dataframe file not found: " & File_Path;
+      when DataFrame_IO_Error =>
+         if Binary_IO.Is_Open(File) then
+            Binary_IO.Close(File);
+         end if;
+
+         Delete(DF);
+         raise;
+      when others =>
+         if Binary_IO.Is_Open(File) then
+            Binary_IO.Close(File);
+         end if;
+
+         Delete(DF);
+         raise DataFrame_IO_Error with
+            "Error reading binary dataframe: " & File_Path;
+   end Load_Binary;
 
    procedure Display(
       DF : in DataFrame_Type;
