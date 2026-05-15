@@ -44,6 +44,19 @@ package body Gusjo.Ds.Array_List is
       List.Data(Index) := Item;
       List.Size := List.Size + 1;
    end Insert_at_index;
+
+   procedure Set_at_index(Item: in     Element_Type;
+                          List: in out Array_List_Type;
+                          Index: in Positive) is
+   begin
+      if List.Data = null then
+         List.Data := new Array_Type(1..List.Capacity);
+      end if;
+      if Index > List.Capacity then
+         Increase_Size(List, Index);
+      end if;
+      List.Data(Index) := Item;
+   end Set_at_index;
    
    function Get_Element_At_Index(List: in Array_List_Type;
              Index: in Integer) return Element_Type is
@@ -58,6 +71,21 @@ package body Gusjo.Ds.Array_List is
    begin
       return List.Size;
    end Size;
+
+   procedure Set_Size(List: in out Array_List_Type;
+                      New_Size: in Natural) is
+   begin
+      if New_Size > 0 then
+         if List.Data = null then
+            List.Data := new Array_Type(1..List.Capacity);
+         end if;
+         if New_Size > List.Capacity then
+            Increase_Size(List, New_Size);
+         end if;
+      end if;
+
+      List.Size := New_Size;
+   end Set_Size;
    
    function Isempty(List: in Array_List_Type) return Boolean is
    begin
