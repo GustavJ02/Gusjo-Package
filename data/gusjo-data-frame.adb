@@ -1,6 +1,7 @@
 --  DataFrame implementation with CSV support
 with Ada.Text_Io; use Ada.Text_Io;
 with Ada.Environment_Variables;
+with Ada.Exceptions;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
@@ -8,6 +9,7 @@ with Ada.Strings.Unbounded.Aux;
 with Ada.Strings.Unbounded.Text_IO;
 with Ada.Numerics.Float_Random;
 with Ada.Unchecked_Deallocation;
+with System.Multiprocessors;
 
 with Gusjo.Math; use Gusjo.Math;
 with Gusjo.Math.Linalg; use Gusjo.Math.Linalg;
@@ -67,6 +69,12 @@ package body Gusjo.Data.Frame is
    procedure Set_Column_Row_Counts(
       DF : in out DataFrame_Type;
       Count : Natural);
+
+   function CSV_Worker_Count return Positive;
+
+   function Count_CSV_Data_Rows(
+      File_Path : String;
+      Headers : Boolean) return Natural;
 
    function CSV_Field_Count(Line : String) return Natural;
 
@@ -146,6 +154,59 @@ package body Gusjo.Data.Frame is
          end case;
       end loop;
    end Set_Column_Row_Counts;
+
+   function CSV_Worker_Count return Positive is
+      Default_Count : constant Positive :=
+         Positive(System.Multiprocessors.Number_Of_CPUs);
+   begin
+      if Ada.Environment_Variables.Exists("GUSJO_CSV_WORKERS") then
+         declare
+            Value : constant String :=
+               Trim(Ada.Environment_Variables.Value("GUSJO_CSV_WORKERS"), Both);
+            Parsed : constant Positive := Positive'Value(Value);
+         begin
+            return Parsed;
+         exception
+            when Constraint_Error =>
+               null;
+         end;
+      end if;
+
+      return Default_Count;
+   end CSV_Worker_Count;
+
+   function Count_CSV_Data_Rows(
+      File_Path : String;
+      Headers : Boolean) return Natural is
+      Count_File : File_Type;
+      Line : Unbounded_String := Null_Unbounded_String;
+      Saw_Header : Boolean := False;
+      Result : Natural := 0;
+   begin
+      Open(Count_File, In_File, File_Path);
+
+      while not End_Of_File(Count_File) loop
+         Ada.Strings.Unbounded.Text_IO.Get_Line(Count_File, Line);
+
+         if Length(Line) > 0 then
+            if Headers and then not Saw_Header then
+               Saw_Header := True;
+            else
+               Result := Result + 1;
+            end if;
+         end if;
+      end loop;
+
+      Close(Count_File);
+      return Result;
+   exception
+      when others =>
+         if Is_Open(Count_File) then
+            Close(Count_File);
+         end if;
+
+         raise;
+   end Count_CSV_Data_Rows;
 
    procedure Ensure_Column_Capacity(
       DF : in out DataFrame_Type;
@@ -749,23 +810,301 @@ package body Gusjo.Data.Frame is
                       Headers : in Boolean := True) is
       File : File_Type;
       Line : Unbounded_String := Null_Unbounded_String;
+      Expected_Rows : Natural := 0;
+      Row_Capacity : Positive := 1;
       Header_Count : Natural := 0;
       Row_Num : Natural := 0;
       First_Row : Boolean := True;
+
+      type Row_Job is record
+         Stop : Boolean := False;
+         Row : Natural := 0;
+         Line : Unbounded_String := Null_Unbounded_String;
+      end record;
+
+      type Row_Job_Array is array (Positive range <>) of Row_Job;
+
+      protected type Parser_Error is
+         procedure Record_Error(Message : String);
+         function Has_Error return Boolean;
+         function Message return String;
+      private
+         Has_Value : Boolean := False;
+         Text : Unbounded_String := Null_Unbounded_String;
+      end Parser_Error;
+
+      protected body Parser_Error is
+         procedure Record_Error(Message : String) is
+         begin
+            if not Has_Value then
+               Has_Value := True;
+               Text := To_Unbounded_String(Message);
+            end if;
+         end Record_Error;
+
+         function Has_Error return Boolean is
+         begin
+            return Has_Value;
+         end Has_Error;
+
+         function Message return String is
+         begin
+            return To_String(Text);
+         end Message;
+      end Parser_Error;
+
+      protected type Row_Queue(Capacity : Positive) is
+         entry Push(
+            Row : Positive;
+            Line : Unbounded_String;
+            Accepted : out Boolean);
+         entry Pop(Job : out Row_Job);
+         procedure Finish(Abort_Now : Boolean := False);
+      private
+         Buffer : Row_Job_Array(1 .. Capacity);
+         Head : Positive := 1;
+         Tail : Positive := 1;
+         Count : Natural := 0;
+         Done : Boolean := False;
+         Abort_Load : Boolean := False;
+      end Row_Queue;
+
+      protected body Row_Queue is
+         entry Push(
+            Row : Positive;
+            Line : Unbounded_String;
+            Accepted : out Boolean)
+            when Count < Capacity or Done or Abort_Load
+         is
+         begin
+            if Done or Abort_Load then
+               Accepted := False;
+               return;
+            end if;
+
+            Buffer(Tail).Stop := False;
+            Buffer(Tail).Row := Row;
+            Buffer(Tail).Line := Line;
+
+            if Tail = Capacity then
+               Tail := 1;
+            else
+               Tail := Tail + 1;
+            end if;
+
+            Count := Count + 1;
+            Accepted := True;
+         end Push;
+
+         entry Pop(Job : out Row_Job)
+            when Count > 0 or Done or Abort_Load
+         is
+         begin
+            if Abort_Load or else (Done and Count = 0) then
+               Job := (Stop => True, Row => 0, Line => Null_Unbounded_String);
+               return;
+            end if;
+
+            Job := Buffer(Head);
+            Buffer(Head) :=
+               (Stop => False, Row => 0, Line => Null_Unbounded_String);
+
+            if Head = Capacity then
+               Head := 1;
+            else
+               Head := Head + 1;
+            end if;
+
+            Count := Count - 1;
+         end Pop;
+
+         procedure Finish(Abort_Now : Boolean := False) is
+         begin
+            Done := True;
+
+            if Abort_Now then
+               Abort_Load := True;
+               for I in Buffer'Range loop
+                  Buffer(I) :=
+                     (Stop => False, Row => 0, Line => Null_Unbounded_String);
+               end loop;
+               Count := 0;
+            end if;
+         end Finish;
+      end Row_Queue;
+
+      Error_State : Parser_Error;
+
+      procedure Parse_Header(Line_View : String) is
+         Position : Natural := 1;
+      begin
+         Header_Count := CSV_Field_Count(Line_View);
+
+         Ensure_Column_Capacity(DF, Header_Count);
+         DF.Num_Cols := Header_Count;
+
+         for I in 1 .. Header_Count loop
+            declare
+               Field : constant Field_Reference :=
+                  Next_CSV_Field(Line_View, Position);
+            begin
+               if not Field.Found then
+                  raise CSV_Error with "CSV header has too few columns";
+               end if;
+
+               DF.Column_Names(I) :=
+                 To_Unbounded_String(Field_To_String(Line_View, Field));
+            end;
+         end loop;
+      end Parse_Header;
+
+      procedure Generate_Header(Line_View : String) is
+      begin
+         Header_Count := CSV_Field_Count(Line_View);
+
+         Ensure_Column_Capacity(DF, Header_Count);
+         DF.Num_Cols := Header_Count;
+
+         for I in 1 .. Header_Count loop
+            DF.Column_Names(I) :=
+               To_Unbounded_String("column_" & Trim(Natural'Image(I), Both));
+         end loop;
+      end Generate_Header;
+
+      procedure Initialize_Data_Row(
+         Line_View : String;
+         Row : Positive) is
+         Position : Natural := 1;
+      begin
+         for Col in 1 .. DF.Num_Cols loop
+            declare
+               Field : constant Field_Reference :=
+                  Next_CSV_Field(Line_View, Position);
+            begin
+               if not Field.Found then
+                  raise CSV_Error with
+                     "CSV row" & Natural'Image(Row) & " has too few columns";
+               end if;
+
+               declare
+                  Field_Value : constant String :=
+                     Field_To_String(Line_View, Field);
+                  Val : constant Gusjo.Data.Value_Type :=
+                     Gusjo.Data.Parse_Value(Field_Value);
+               begin
+                  case Val.Kind is
+                     when Gusjo.Data.Integer_Type =>
+                        DF.Columns(Col).Kind := Gusjo.Data.Integer_Type;
+                        DF.Columns(Col).Int_Col :=
+                           new Integer_Column.Column_Type(Row_Capacity);
+                        Integer_Column.Set_At_Index(
+                           DF.Columns(Col).Int_Col.all,
+                           Gusjo.Data.To_Integer(Val),
+                           Row);
+                     when Gusjo.Data.Float_Type =>
+                        DF.Columns(Col).Kind := Gusjo.Data.Float_Type;
+                        DF.Columns(Col).Float_Col :=
+                           new Float_Column.Column_Type(Row_Capacity);
+                        Float_Column.Set_At_Index(
+                           DF.Columns(Col).Float_Col.all,
+                           Gusjo.Data.To_Float(Val),
+                           Row);
+                     when Gusjo.Data.String_Type =>
+                        DF.Columns(Col).Kind := Gusjo.Data.String_Type;
+                        DF.Columns(Col).String_Col :=
+                           new String_Column.Column_Type(Row_Capacity);
+                        String_Column.Set_At_Index(
+                           DF.Columns(Col).String_Col.all,
+                           To_Unbounded_String(Trim(Field_Value, Both)),
+                           Row);
+                  end case;
+               end;
+            end;
+         end loop;
+
+         if Position /= 0 then
+            raise CSV_Error with
+               "CSV row" & Natural'Image(Row) & " has too many columns";
+         end if;
+      end Initialize_Data_Row;
+
+      procedure Parse_Known_Data_Row(
+         Line_View : String;
+         Row : Positive) is
+         Position : Natural := 1;
+      begin
+         for Col in 1 .. DF.Num_Cols loop
+            if Position = 0 then
+               raise CSV_Error with
+                  "CSV row" & Natural'Image(Row) & " has too few columns";
+            end if;
+
+            case DF.Columns(Col).Kind is
+               when Gusjo.Data.Integer_Type =>
+                  Integer_Column.Set_Preallocated_At_Index(
+                     DF.Columns(Col).Int_Col.all,
+                     Parse_Next_Integer_Field(Line_View, Position),
+                     Row);
+               when Gusjo.Data.Float_Type =>
+                  Float_Column.Set_Preallocated_At_Index(
+                     DF.Columns(Col).Float_Col.all,
+                     Parse_Next_Float_Field(Line_View, Position),
+                     Row);
+               when Gusjo.Data.String_Type =>
+                  declare
+                     Field : constant Field_Reference :=
+                        Next_CSV_Field(Line_View, Position);
+                  begin
+                     if not Field.Found then
+                        raise CSV_Error with
+                           "CSV row" & Natural'Image(Row) &
+                           " has too few columns";
+                     end if;
+
+                     String_Column.Set_Preallocated_At_Index(
+                        DF.Columns(Col).String_Col.all,
+                        To_Unbounded_String(
+                           Trim(Field_To_String(Line_View, Field), Both)),
+                        Row);
+                  end;
+            end case;
+         end loop;
+
+         if Position /= 0 then
+            raise CSV_Error with
+               "CSV row" & Natural'Image(Row) & " has too many columns";
+         end if;
+      end Parse_Known_Data_Row;
+
+      procedure Process_Line_View(Line : Unbounded_String; Row : Positive) is
+         Line_Data : Ada.Strings.Unbounded.Aux.Big_String_Access;
+         Line_Length : Natural;
+      begin
+         Ada.Strings.Unbounded.Aux.Get_String(Line, Line_Data, Line_Length);
+
+         if Line_Length > 0 then
+            declare
+               Line_View : String renames Line_Data.all(1 .. Line_Length);
+            begin
+               Parse_Known_Data_Row(Line_View, Row);
+            end;
+         end if;
+      end Process_Line_View;
    begin
       Delete(DF);
 
+      Expected_Rows := Count_CSV_Data_Rows(File_Path, Headers);
+      Row_Capacity := Positive(Natural'Max(1, Expected_Rows));
+
       Open(File, In_File, File_Path);
 
-      while not End_Of_File(File) loop
+      while Row_Num = 0 and then not End_Of_File(File) loop
          Ada.Strings.Unbounded.Text_IO.Get_Line(File, Line);
 
          declare
             Line_Data : Ada.Strings.Unbounded.Aux.Big_String_Access;
             Line_Length : Natural;
          begin
-            --  Avoid copying very wide CSV rows. This view is valid until Line
-            --  is modified by the next Get_Line call.
             Ada.Strings.Unbounded.Aux.Get_String(Line, Line_Data, Line_Length);
 
             if Line_Length > 0 then
@@ -773,163 +1112,89 @@ package body Gusjo.Data.Frame is
                   Line_View : String renames Line_Data.all(1 .. Line_Length);
                begin
                   if First_Row and then Headers then
-                     --  Parse header
-                     Header_Count := CSV_Field_Count(Line_View);
-
-                     Ensure_Column_Capacity(DF, Header_Count);
-                     DF.Num_Cols := Header_Count;
-
-                     --  Initialize columns based on header
-                     declare
-                        Position : Natural := 1;
-                     begin
-                        for I in 1 .. Header_Count loop
-                           declare
-                              Field : constant Field_Reference :=
-                                 Next_CSV_Field(Line_View, Position);
-                           begin
-                              if not Field.Found then
-                                 raise CSV_Error with "CSV header has too few columns";
-                              end if;
-
-                              DF.Column_Names(I) :=
-                                To_Unbounded_String(
-                                   Field_To_String(Line_View, Field));
-                           end;
-                           --  Columns will be created on first data row
-                        end loop;
-                     end;
-
+                     Parse_Header(Line_View);
                      First_Row := False;
                   else
                      if First_Row then
-                        Header_Count := CSV_Field_Count(Line_View);
-
-                        Ensure_Column_Capacity(DF, Header_Count);
-                        DF.Num_Cols := Header_Count;
-
-                        for I in 1 .. Header_Count loop
-                           DF.Column_Names(I) :=
-                              To_Unbounded_String(
-                                 "column_" & Trim(Natural'Image(I), Both));
-                        end loop;
-
+                        Generate_Header(Line_View);
                         First_Row := False;
                      end if;
 
                      Row_Num := Row_Num + 1;
+                     Initialize_Data_Row(Line_View, Row_Num);
 
-                     declare
-                        Position : Natural := 1;
-                     begin
-                        --  Parse and append data to columns
-                        for Col in 1 .. DF.Num_Cols loop
-                           if Position = 0 then
-                              raise CSV_Error with
-                                 "CSV row" & Natural'Image(Row_Num) &
-                                 " has too few columns";
-                           end if;
-
-                           --  Initialize columns on first data row
-                           if Row_Num = 1 then
-                              declare
-                                 Field : constant Field_Reference :=
-                                    Next_CSV_Field(Line_View, Position);
-                              begin
-                                 if not Field.Found then
-                                    raise CSV_Error with
-                                       "CSV row" & Natural'Image(Row_Num) &
-                                       " has too few columns";
-                                 end if;
-
-                                 declare
-                                    Field_Value : constant String :=
-                                       Field_To_String(Line_View, Field);
-                                    Val : constant Gusjo.Data.Value_Type :=
-                                       Gusjo.Data.Parse_Value(Field_Value);
-                                 begin
-                                    case Val.Kind is
-                                       when Gusjo.Data.Integer_Type =>
-                                          DF.Columns(Col).Kind :=
-                                             Gusjo.Data.Integer_Type;
-                                          DF.Columns(Col).Int_Col :=
-                                            new Integer_Column.Column_Type(Max_Rows);
-                                          Integer_Column.Set_At_Index(
-                                             DF.Columns(Col).Int_Col.all,
-                                             Gusjo.Data.To_Integer(Val),
-                                             Row_Num);
-                                       when Gusjo.Data.Float_Type =>
-                                          DF.Columns(Col).Kind :=
-                                             Gusjo.Data.Float_Type;
-                                          DF.Columns(Col).Float_Col :=
-                                            new Float_Column.Column_Type(Max_Rows);
-                                          Float_Column.Set_At_Index(
-                                             DF.Columns(Col).Float_Col.all,
-                                             Gusjo.Data.To_Float(Val),
-                                             Row_Num);
-                                       when Gusjo.Data.String_Type =>
-                                          DF.Columns(Col).Kind :=
-                                             Gusjo.Data.String_Type;
-                                          DF.Columns(Col).String_Col :=
-                                            new String_Column.Column_Type(Max_Rows);
-                                          String_Column.Set_At_Index(
-                                             DF.Columns(Col).String_Col.all,
-                                             To_Unbounded_String(
-                                                Trim(Field_Value, Both)),
-                                             Row_Num);
-                                    end case;
-                                 end;
-                              end;
-                           else
-                              case DF.Columns(Col).Kind is
-                                 when Gusjo.Data.Integer_Type =>
-                                    Integer_Column.Set_At_Index(
-                                       DF.Columns(Col).Int_Col.all,
-                                       Parse_Next_Integer_Field(
-                                          Line_View,
-                                          Position),
-                                       Row_Num);
-                                 when Gusjo.Data.Float_Type =>
-                                    Float_Column.Set_At_Index(
-                                       DF.Columns(Col).Float_Col.all,
-                                       Parse_Next_Float_Field(
-                                          Line_View,
-                                          Position),
-                                       Row_Num);
-                                 when Gusjo.Data.String_Type =>
-                                    declare
-                                       Field : constant Field_Reference :=
-                                          Next_CSV_Field(Line_View, Position);
-                                    begin
-                                       if not Field.Found then
-                                          raise CSV_Error with
-                                             "CSV row" & Natural'Image(Row_Num) &
-                                             " has too few columns";
-                                       end if;
-
-                                       String_Column.Set_At_Index(
-                                          DF.Columns(Col).String_Col.all,
-                                          To_Unbounded_String(
-                                             Trim(
-                                                Field_To_String(Line_View, Field),
-                                                Both)),
-                                          Row_Num);
-                                    end;
-                              end case;
-                           end if;
-                        end loop;
-
-                        if Position /= 0 then
-                           raise CSV_Error with
-                              "CSV row" & Natural'Image(Row_Num) &
-                              " has too many columns";
-                        end if;
-                     end;
+                     if Expected_Rows > 1 then
+                        Set_Column_Row_Counts(DF, Row_Capacity);
+                     end if;
                   end if;
                end;
             end if;
          end;
       end loop;
+
+      if Row_Num = 1 and then Expected_Rows > 1 then
+         declare
+            Worker_Count : constant Positive := CSV_Worker_Count;
+            Queue_Capacity : constant Positive :=
+               Positive'Max(1, Worker_Count * 2);
+            Queue : Row_Queue(Queue_Capacity);
+
+            task type CSV_Worker;
+
+            task body CSV_Worker is
+               Job : Row_Job;
+            begin
+               loop
+                  Queue.Pop(Job);
+                  exit when Job.Stop;
+
+                  begin
+                     Process_Line_View(Job.Line, Positive(Job.Row));
+                     Job.Line := Null_Unbounded_String;
+                  exception
+                     when E : others =>
+                        Job.Line := Null_Unbounded_String;
+                        Error_State.Record_Error(Ada.Exceptions.Exception_Message(E));
+                        Queue.Finish(Abort_Now => True);
+                  end;
+               end loop;
+            end CSV_Worker;
+
+            Workers : array (1 .. Worker_Count) of CSV_Worker;
+         begin
+            begin
+               while not End_Of_File(File) loop
+                  Ada.Strings.Unbounded.Text_IO.Get_Line(File, Line);
+
+                  if Length(Line) > 0 then
+                     declare
+                        Accepted : Boolean;
+                     begin
+                        Row_Num := Row_Num + 1;
+
+                        if Row_Num > Row_Capacity then
+                           raise CSV_Error with
+                              "CSV row count changed while loading";
+                        end if;
+
+                        Queue.Push(Row_Num, Line, Accepted);
+                        exit when not Accepted or else Error_State.Has_Error;
+                     end;
+                  end if;
+               end loop;
+
+               Queue.Finish;
+            exception
+               when others =>
+                  Queue.Finish(Abort_Now => True);
+                  raise;
+            end;
+         end;
+
+         if Error_State.Has_Error then
+            raise CSV_Error with Error_State.Message;
+         end if;
+      end if;
 
       Close(File);
       DF.Num_Rows := Row_Num;
