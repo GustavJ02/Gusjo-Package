@@ -140,7 +140,4 @@ best value may vary by CPU count, memory bandwidth, and other system load.
 
 - `Ada.Strings.Unbounded.Aux` is a GNAT-specific internal package. It is used
   intentionally for performance on very wide rows.
-- The dataframe representation is general-purpose and column-oriented. For
-  image datasets, a future dense matrix loader or binary cache would likely be
-  faster and more memory efficient than representing each pixel as a dataframe
-  column.
+- The dataframe representation is general-purpose and column-oriented.
