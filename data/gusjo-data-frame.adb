@@ -64,6 +64,10 @@ package body Gusjo.Data.Frame is
 
    procedure Free_Column(Col : in out Column_Reference);
 
+   procedure Set_Column_Row_Counts(
+      DF : in out DataFrame_Type;
+      Count : Natural);
+
    function CSV_Field_Count(Line : String) return Natural;
 
    function Next_CSV_Field(
@@ -114,6 +118,34 @@ package body Gusjo.Data.Frame is
 
       Col := Empty_Column;
    end Free_Column;
+
+   procedure Set_Column_Row_Counts(
+      DF : in out DataFrame_Type;
+      Count : Natural) is
+   begin
+      for Col in 1 .. DF.Num_Cols loop
+         case DF.Columns(Col).Kind is
+            when Gusjo.Data.Integer_Type =>
+               if DF.Columns(Col).Int_Col /= null then
+                  Integer_Column.Set_Row_Count(
+                     DF.Columns(Col).Int_Col.all,
+                     Count);
+               end if;
+            when Gusjo.Data.Float_Type =>
+               if DF.Columns(Col).Float_Col /= null then
+                  Float_Column.Set_Row_Count(
+                     DF.Columns(Col).Float_Col.all,
+                     Count);
+               end if;
+            when Gusjo.Data.String_Type =>
+               if DF.Columns(Col).String_Col /= null then
+                  String_Column.Set_Row_Count(
+                     DF.Columns(Col).String_Col.all,
+                     Count);
+               end if;
+         end case;
+      end loop;
+   end Set_Column_Row_Counts;
 
    procedure Ensure_Column_Capacity(
       DF : in out DataFrame_Type;
@@ -822,43 +854,48 @@ package body Gusjo.Data.Frame is
                                              Gusjo.Data.Integer_Type;
                                           DF.Columns(Col).Int_Col :=
                                             new Integer_Column.Column_Type(Max_Rows);
-                                          Integer_Column.Append(
+                                          Integer_Column.Set_At_Index(
                                              DF.Columns(Col).Int_Col.all,
-                                             Gusjo.Data.To_Integer(Val));
+                                             Gusjo.Data.To_Integer(Val),
+                                             Row_Num);
                                        when Gusjo.Data.Float_Type =>
                                           DF.Columns(Col).Kind :=
                                              Gusjo.Data.Float_Type;
                                           DF.Columns(Col).Float_Col :=
                                             new Float_Column.Column_Type(Max_Rows);
-                                          Float_Column.Append(
+                                          Float_Column.Set_At_Index(
                                              DF.Columns(Col).Float_Col.all,
-                                             Gusjo.Data.To_Float(Val));
+                                             Gusjo.Data.To_Float(Val),
+                                             Row_Num);
                                        when Gusjo.Data.String_Type =>
                                           DF.Columns(Col).Kind :=
                                              Gusjo.Data.String_Type;
                                           DF.Columns(Col).String_Col :=
                                             new String_Column.Column_Type(Max_Rows);
-                                          String_Column.Append(
+                                          String_Column.Set_At_Index(
                                              DF.Columns(Col).String_Col.all,
                                              To_Unbounded_String(
-                                                Trim(Field_Value, Both)));
+                                                Trim(Field_Value, Both)),
+                                             Row_Num);
                                     end case;
                                  end;
                               end;
                            else
                               case DF.Columns(Col).Kind is
                                  when Gusjo.Data.Integer_Type =>
-                                    Integer_Column.Append(
+                                    Integer_Column.Set_At_Index(
                                        DF.Columns(Col).Int_Col.all,
                                        Parse_Next_Integer_Field(
                                           Line_View,
-                                          Position));
+                                          Position),
+                                       Row_Num);
                                  when Gusjo.Data.Float_Type =>
-                                    Float_Column.Append(
+                                    Float_Column.Set_At_Index(
                                        DF.Columns(Col).Float_Col.all,
                                        Parse_Next_Float_Field(
                                           Line_View,
-                                          Position));
+                                          Position),
+                                       Row_Num);
                                  when Gusjo.Data.String_Type =>
                                     declare
                                        Field : constant Field_Reference :=
@@ -870,12 +907,13 @@ package body Gusjo.Data.Frame is
                                              " has too few columns";
                                        end if;
 
-                                       String_Column.Append(
+                                       String_Column.Set_At_Index(
                                           DF.Columns(Col).String_Col.all,
                                           To_Unbounded_String(
                                              Trim(
                                                 Field_To_String(Line_View, Field),
-                                                Both)));
+                                                Both)),
+                                          Row_Num);
                                     end;
                               end case;
                            end if;
@@ -895,6 +933,7 @@ package body Gusjo.Data.Frame is
 
       Close(File);
       DF.Num_Rows := Row_Num;
+      Set_Column_Row_Counts(DF, Row_Num);
    exception
       when Name_Error =>
          raise CSV_Error with "File not found: " & File_Path;
