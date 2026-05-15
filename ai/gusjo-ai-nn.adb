@@ -2,6 +2,7 @@ with Ada.Unchecked_Deallocation;
 
 with Gusjo.Math;        use Gusjo.Math;
 with Gusjo.Math.Linalg; use Gusjo.Math.Linalg;
+with Gusjo.Math.Optimization; use Gusjo.Math.Optimization;
 with Gusjo.Ai;          use Gusjo.Ai;
 
 with Ada.Text_IO;          use Ada.Text_IO;
@@ -585,6 +586,72 @@ package body Gusjo.Ai.Nn is
       Delete(dZ);
    end Backward_Batch;
 
+   function Cached_Batch_Loss(M : in Model;
+                              Y : in Matrix) return Float is
+      P : Matrix;
+   begin
+      if M.Ls = null or else M.Ls'Length = 0 then
+         raise Constraint_Error with "Batch_Loss: model has no layers";
+      end if;
+
+      P := M.Ls(M.Ls'Last).A_M;
+
+      case M.Loss is
+         when CrossEntropy =>
+            return CrossEntropy_OneHot(P, Y);
+         when MSE =>
+            declare
+               Diff : Matrix := P - Y;
+               Norm : constant Float := L2_Norm(Diff);
+               Loss : constant Float := (Norm ** 2) / Float(Cols(Y));
+            begin
+               Delete(Diff);
+               return Loss;
+            end;
+      end case;
+   end Cached_Batch_Loss;
+
+   function Gradient_Norm(M : in Model) return Float is
+      Sum : Float := 0.0;
+      NormW : Float;
+      NormB : Float;
+   begin
+      if M.Ls = null then
+         return 0.0;
+      end if;
+
+      for I in M.Ls'Range loop
+         NormW := L2_Norm(M.Ls(I).dW);
+         NormB := L2_Norm(M.Ls(I).dB);
+         Sum := Sum + NormW ** 2 + NormB ** 2;
+      end loop;
+
+      return Sqrt(Sum);
+   end Gradient_Norm;
+
+   function Batch_Loss(M : in out Model;
+                       X : in     Matrix;
+                       Y : in     Matrix) return Float is
+      P : Matrix := Forward_Batch(M, X);
+      Loss : Float;
+   begin
+      case M.Loss is
+         when CrossEntropy =>
+            Loss := CrossEntropy_OneHot(P, Y);
+         when MSE =>
+            declare
+               Diff : Matrix := P - Y;
+               Norm : constant Float := L2_Norm(Diff);
+            begin
+               Loss := (Norm ** 2) / Float(Cols(Y));
+               Delete(Diff);
+            end;
+      end case;
+
+      Delete(P);
+      return Loss;
+   end Batch_Loss;
+
    procedure Train_Batch(M: in out Model;
                    X : in     Matrix;
                    Y : in     Matrix;
@@ -594,6 +661,73 @@ package body Gusjo.Ai.Nn is
       for Epoch in 1 .. Epochs loop
          Backward_Batch(M, X, Y);
          Step(M, Learning_Rate => LR);
+      end loop;
+   end Train_Batch;
+
+   procedure Train_Batch(
+      M : in out Model;
+      X : in     Matrix;
+      Y : in     Matrix;
+      Config : in Optimizer_Config;
+      Result : out Optimization_Result;
+      Verbose : in Natural := 0) is
+
+      Previous_Loss : Float := 0.0;
+      Current_Loss : Float := 0.0;
+      Current_Gradient_Norm : Float := 0.0;
+      Has_Previous_Loss : Boolean := False;
+   begin
+      Result := (
+         Epochs_Run => 0,
+         Final_Loss => 0.0,
+         Final_Gradient_Norm => 0.0,
+         Reason => Max_Epochs_Reached);
+
+      case Config.Method is
+         when Gradient_Descent =>
+            null;
+         when Newton_Method | BFGS =>
+            raise Constraint_Error with
+               "Train_Batch: optimizer method is not implemented for neural networks";
+      end case;
+
+      for Epoch in 1 .. Config.Max_Epochs loop
+         Backward_Batch(M, X, Y);
+         Current_Gradient_Norm := Gradient_Norm(M);
+         Current_Loss := Cached_Batch_Loss(M, Y);
+
+         Result.Epochs_Run := Epoch;
+         Result.Final_Loss := Current_Loss;
+         Result.Final_Gradient_Norm := Current_Gradient_Norm;
+
+         if Config.Gradient_Tolerance > 0.0
+           and then Current_Gradient_Norm <= Config.Gradient_Tolerance
+         then
+            Result.Reason := Gradient_Tolerance_Reached;
+            return;
+         end if;
+
+         if Config.Loss_Tolerance > 0.0
+           and then Has_Previous_Loss
+           and then abs (Current_Loss - Previous_Loss) <= Config.Loss_Tolerance
+         then
+            Result.Reason := Loss_Tolerance_Reached;
+            return;
+         end if;
+
+         if Verbose > 0 and then Epoch mod Verbose = 0 then
+            Put_Line("Epoch " & Integer'Image(Epoch) &
+                     ": Loss=" & Float'Image(Current_Loss) &
+                     ", GradNorm=" & Float'Image(Current_Gradient_Norm));
+         end if;
+
+         Step(
+            M,
+            Learning_Rate => Config.Learning_Rate,
+            Clip_Threshold => Config.Clip_Threshold);
+
+         Previous_Loss := Current_Loss;
+         Has_Previous_Loss := True;
       end loop;
    end Train_Batch;
 

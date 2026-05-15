@@ -1,4 +1,5 @@
 with Gusjo.Math;  use Gusjo.Math;
+with Gusjo.Math.Optimization;
 with Gusjo.Ai;    use Gusjo.Ai;
 with Ada.Text_IO; use Ada.Text_IO;
 
@@ -49,11 +50,25 @@ package Gusjo.Ai.Nn is
    procedure Backward_Batch (M    : in out Model;
                              X, Y : in     Matrix);
 
+   function Gradient_Norm(M : in Model) return Float;
+
+   function Batch_Loss(M : in out Model;
+                       X : in     Matrix;
+                       Y : in     Matrix) return Float;
+
    procedure Train_Batch(M: in out Model;
                    X : in     Matrix;
                    Y : in     Matrix;
                    LR : in    Float := 0.01;
                    Epochs : in Integer := 1000);
+
+   procedure Train_Batch(
+      M : in out Model;
+      X : in     Matrix;
+      Y : in     Matrix;
+      Config : in Gusjo.Math.Optimization.Optimizer_Config;
+      Result : out Gusjo.Math.Optimization.Optimization_Result;
+      Verbose : in Natural := 0);
 private
 
    type Dense_Layer is
