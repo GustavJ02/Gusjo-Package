@@ -1,4 +1,4 @@
 project Gusjo is
-   for Source_Dirs use ("./", "ai", "math", "ds", "io", "data", "usage_examples", "gpt");
+   for Source_Dirs use ("./", "ai", "math", "ds", "io", "data", "usage_examples", "gpt", "cli");
    for Object_Dir  use "obj";
 end Gusjo;

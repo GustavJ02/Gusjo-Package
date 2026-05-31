@@ -2,12 +2,33 @@ with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Strings.Fixed;
 with System.Multiprocessors;
 with Ada.Environment_Variables;
+with Ada.Calendar; use Ada.Calendar;
+with Ada.Containers.Hashed_Maps;
+with Ada.Containers.Vectors;
 
 package body Gusjo.GPT.Tokenizer is
 
-   package Pair_Count_Maps is new Ada.Containers.Ordered_Maps
-   (Key_Type     => Token_Pair,
-      Element_Type => Natural);
+   function Hash_Token_Pair (P : Token_Pair) return Ada.Containers.Hash_Type is
+      use type Ada.Containers.Hash_Type;  -- makes *, xor visible
+      A : constant Ada.Containers.Hash_Type :=
+      Ada.Containers.Hash_Type (P.Left);
+      B : constant Ada.Containers.Hash_Type :=
+      Ada.Containers.Hash_Type (P.Right);
+   begin
+      return (A * 2654435761) xor (B * 2246822519);
+   end Hash_Token_Pair;
+
+
+   function Token_Pair_Equal (A, B : Token_Pair) return Boolean is
+   begin
+      return A.Left = B.Left and then A.Right = B.Right;
+   end Token_Pair_Equal;
+
+   package Pair_Count_Maps is new Ada.Containers.Hashed_Maps
+   (Key_Type        => Token_Pair,
+      Element_Type    => Natural,
+      Hash            => Hash_Token_Pair,
+      Equivalent_Keys => Token_Pair_Equal);
 
    function Tokenizer_Worker_Count return Positive is
       Default_Count : constant Positive :=
@@ -28,17 +49,6 @@ package body Gusjo.GPT.Tokenizer is
       end if;
       return Default_Count;
    end Tokenizer_Worker_Count;
-
-   function "<"(Left, Right : Token_Pair) return Boolean is
-   begin
-      if Left.Left < Right.Left then
-         return True;
-      elsif Left.Left = Right.Left then
-         return Left.Right < Right.Right;
-      else
-         return False;
-      end if;
-   end "<";
 
    procedure Initialize_Tokenizer(T : in out BPE_Tokenizer) is
    begin
@@ -81,114 +91,26 @@ package body Gusjo.GPT.Tokenizer is
                         IDs        : in out ID_Vec.Vector;
                         Vocab_Size : in Positive) is
 
-      Num_Tasks  : constant Positive := Tokenizer_Worker_Count;
-      Pair_Counts : Pair_Count_Maps.Map;
-      Curr_Size   : Natural := 0;
+      -- --------------------------------------------------------
+      --  Position index: for each pair, where it occurs in IDs
+      --  Count is free — just the length of the position vector
+      -- --------------------------------------------------------
+      package Position_Vec is new Ada.Containers.Vectors
+        (Index_Type   => Natural,
+         Element_Type => Natural);
 
-      -- Access type so tasks can read IDs without copying
+      use type Position_Vec.Vector;   -- makes "=" visible for Element_Type
+      package Position_Maps is new Ada.Containers.Hashed_Maps
+      (Key_Type        => Token_Pair,
+         Element_Type    => Position_Vec.Vector,
+         Hash            => Hash_Token_Pair,
+         Equivalent_Keys => Token_Pair_Equal);
+
+      -- At the top of Merge_BPE declarations, after Position_Maps:
+      Num_Tasks : constant Positive := Tokenizer_Worker_Count;
+
       type ID_Vec_Access is access constant ID_Vec.Vector;
 
-      -- --------------------------------------------------------
-      --  TASK TYPE 1: Count pairs in a slice of IDs
-      -- --------------------------------------------------------
-      task type Count_Task is
-         entry Start (IDs_Ptr : ID_Vec_Access;
-                     First   : Natural;
-                     Last    : Natural);
-         entry Get_Result (Result : out Pair_Count_Maps.Map);
-      end Count_Task;
-
-      task body Count_Task is
-         Local_Counts : Pair_Count_Maps.Map;
-         IDs_Ref      : ID_Vec_Access;
-         F, L         : Natural;
-      begin
-         accept Start (IDs_Ptr : ID_Vec_Access;
-                     First   : Natural;
-                     Last    : Natural) do
-            IDs_Ref := IDs_Ptr;
-            F       := First;
-            L       := Last;
-         end Start;
-
-         for I in F .. L loop
-            declare
-               P : constant Token_Pair :=
-               (Left  => IDs_Ref (I),
-                  Right => IDs_Ref (I + 1));
-               C : Natural := 0;
-            begin
-               if Local_Counts.Contains (P) then
-                  C := Local_Counts (P);
-               end if;
-               Local_Counts.Include (P, C + 1);
-            end;
-         end loop;
-
-         accept Get_Result (Result : out Pair_Count_Maps.Map) do
-            Result := Local_Counts;
-         end Get_Result;
-      end Count_Task;
-
-      -- --------------------------------------------------------
-      --  TASK TYPE 2: Apply a merge to a slice, write to output
-      -- --------------------------------------------------------
-      task type Apply_Task is
-         entry Start (IDs_Ptr  : ID_Vec_Access;
-                     First    : Natural;
-                     Last     : Natural;
-                     Left_ID  : Token_ID;
-                     Right_ID : Token_ID;
-                     New_ID   : Token_ID);
-         entry Get_Result (Result : out ID_Vec.Vector);
-      end Apply_Task;
-
-      task body Apply_Task is
-         Local_Out        : ID_Vec.Vector;
-         IDs_Ref          : ID_Vec_Access;
-         F, L             : Natural;
-         L_ID, R_ID, N_ID : Token_ID;
-      begin
-         accept Start (IDs_Ptr  : ID_Vec_Access;
-                     First    : Natural;
-                     Last     : Natural;
-                     Left_ID  : Token_ID;
-                     Right_ID : Token_ID;
-                     New_ID   : Token_ID) do
-            IDs_Ref := IDs_Ptr;
-            F       := First;
-            L       := Last;
-            L_ID    := Left_ID;
-            R_ID    := Right_ID;
-            N_ID    := New_ID;
-         end Start;
-
-         declare
-            I : Natural := F;
-         begin
-            while I <= L loop
-               if I < L
-               and then IDs_Ref (I)     = L_ID
-               and then IDs_Ref (I + 1) = R_ID
-               then
-                  Local_Out.Append (N_ID);
-                  I := I + 2;
-               else
-                  Local_Out.Append (IDs_Ref (I));
-                  I := I + 1;
-               end if;
-            end loop;
-         end;
-
-         accept Get_Result (Result : out ID_Vec.Vector) do
-            Result := Local_Out;
-         end Get_Result;
-      end Apply_Task;
-
-      -- --------------------------------------------------------
-      --  Helper: split IDs into N roughly equal chunks
-      --  Returns array of (First, Last) pairs
-      -- --------------------------------------------------------
       type Chunk is record
          First : Natural;
          Last  : Natural;
@@ -203,15 +125,172 @@ package body Gusjo.GPT.Tokenizer is
          Chunk_Size : constant Natural := (Total + N - 1) / N;
       begin
          for I in 1 .. N loop
-            Result (I).First :=
-            First + (I - 1) * Chunk_Size;
+            Result (I).First := First + (I - 1) * Chunk_Size;
             Result (I).Last  :=
             Natural'Min (Result (I).First + Chunk_Size - 1, Last);
          end loop;
          return Result;
       end Make_Chunks;
 
+      -- Task: compact a slice (remove sentinels) and build local index
+      task type Compact_And_Index_Task is
+         entry Start (IDs_Ptr : ID_Vec_Access;
+                     First   : Natural;
+                     Last    : Natural;
+                     Del     : Token_ID);
+         entry Get_Result (Compacted : out ID_Vec.Vector;
+                           Local_Idx : out Position_Maps.Map);
+      end Compact_And_Index_Task;
+
+      task body Compact_And_Index_Task is
+         My_IDs : ID_Vec.Vector;      -- renamed from Local_IDs
+         My_Idx : Position_Maps.Map;  -- renamed from Local_Idx
+         IDs_Ref   : ID_Vec_Access;
+         F, L      : Natural;
+         Del_Val   : Token_ID;
+      begin
+         accept Start (IDs_Ptr : ID_Vec_Access;
+                     First   : Natural;
+                     Last    : Natural;
+                     Del     : Token_ID) do
+            IDs_Ref := IDs_Ptr;
+            F       := First;
+            L       := Last;
+            Del_Val := Del;
+         end Start;
+         for I in F .. L loop
+            if IDs_Ref (I) /= Del_Val then
+               My_IDs.Append (IDs_Ref (I));
+            end if;
+         end loop;
+
+         for I in My_IDs.First_Index .. My_IDs.Last_Index - 1 loop
+            declare
+               P : constant Token_Pair :=
+               (Left  => My_IDs (I),
+                  Right => My_IDs (I + 1));
+            begin
+               if not My_Idx.Contains (P) then
+                  My_Idx.Insert (P, Position_Vec.Empty_Vector);
+               end if;
+               My_Idx (P).Append (I);
+            end;
+         end loop;
+
+         accept Get_Result (Compacted : out ID_Vec.Vector;
+                           Local_Idx : out Position_Maps.Map) do
+            Compacted := My_IDs;   -- now unambiguous
+            Local_Idx := My_Idx;   -- now unambiguous
+         end Get_Result;
+      end Compact_And_Index_Task;
+
+      Positions : Position_Maps.Map;
+      Curr_Size : Natural := 0;
+
+      -- Timing accumulators
+      T_Build_Total    : Duration := 0.0;
+      T_Best_Total     : Duration := 0.0;
+      T_Update_Total   : Duration := 0.0;
+      T_Compact_Total  : Duration := 0.0;
+      T_Start          : Time;
+
+      -- Sentinel value marking a deleted slot in IDs
+      -- Token_ID'Last is safe since we never legitimately assign it
+      Deleted : constant Token_ID := Token_ID'Last;
+
+      -- --------------------------------------------------------
+      --  Add a position to the index for a given pair
+      -- --------------------------------------------------------
+      procedure Add_Position (Pair : Token_Pair; Pos : Natural) is
+      begin
+         if not Positions.Contains (Pair) then
+            Positions.Insert (Pair, Position_Vec.Empty_Vector);
+         end if;
+         Positions (Pair).Append (Pos);
+      end Add_Position;
+
+      -- --------------------------------------------------------
+      --  Remove a specific position from the index for a pair
+      --  Deletes the pair entry entirely if no positions remain
+      -- --------------------------------------------------------
+      procedure Remove_Position (Pair : Token_Pair; Pos : Natural) is
+      begin
+         if not Positions.Contains (Pair) then
+            return;
+         end if;
+
+         -- Phase 1: remove the position from the vector
+         -- Do this in its own scope so the renames alias is gone before
+         -- we potentially delete the map entry
+         declare
+            Vec       : Position_Vec.Vector renames Positions (Pair);
+            Found_Idx : Integer := Position_Vec.No_Index;
+         begin
+            for I in Vec.First_Index .. Vec.Last_Index loop
+               if Vec (I) = Pos then
+                  Found_Idx := I;
+                  exit;
+               end if;
+            end loop;
+            if Found_Idx /= Position_Vec.No_Index then
+               Vec.Delete (Found_Idx);
+            end if;
+         end;  -- <-- renames alias dies here, Positions is free to modify
+
+         -- Phase 2: now safe to delete the map entry if vector is empty
+         if Positions.Contains (Pair)
+         and then Positions (Pair).Is_Empty
+         then
+            Positions.Delete (Pair);
+         end if;
+      end Remove_Position;
+
+
+      -- --------------------------------------------------------
+      --  Build position index from scratch
+      --  Called once at the start — O(n) where n = IDs.Length
+      -- --------------------------------------------------------
+      procedure Build_Position_Index is
+      begin
+         Positions.Clear;
+         for I in IDs.First_Index .. IDs.Last_Index - 1 loop
+            Add_Position
+              ((Left => IDs (I), Right => IDs (I + 1)), I);
+         end loop;
+      end Build_Position_Index;
+
+      -- --------------------------------------------------------
+      --  Find the pair with the highest occurrence count
+      --  O(number of unique pairs) — much smaller than IDs.Length
+      -- --------------------------------------------------------
+      function Find_Best return Token_Pair is
+         Best       : Token_Pair;
+         Best_Count : Natural := 0;
+      begin
+         for Cursor in Positions.Iterate loop
+            declare
+               Count : constant Natural :=
+                 Natural (Position_Maps.Element (Cursor).Length);
+            begin
+               if Count > Best_Count then
+                  Best_Count := Count;
+                  Best       := Position_Maps.Key (Cursor);
+               end if;
+            end;
+         end loop;
+         return Best;
+      end Find_Best;
+
    begin
+      -- =========================================================
+      --  Build the position index once before the main loop
+      -- =========================================================
+      T_Start := Clock;
+      Build_Position_Index;
+      T_Build_Total := T_Build_Total + (Clock - T_Start);
+      Put_Line ("Index built. Unique pairs: " &
+                Natural'Image (Natural (Positions.Length)));
+
       -- =========================================================
       --  Main BPE loop
       -- =========================================================
@@ -222,126 +301,215 @@ package body Gusjo.GPT.Tokenizer is
             Put_Line ("Current Vocab Size:" & Natural'Image (Curr_Size));
          end if;
 
-         -- -------------------------------------------------------
-         --  PHASE 1: Parallel pair counting
-         -- -------------------------------------------------------
-         Pair_Counts.Clear;
+         exit when Positions.Is_Empty;
 
+         -- -------------------------------------------------------
+         --  Find best pair — O(unique pairs), not O(corpus size)
+         -- -------------------------------------------------------
+         T_Start := Clock;
          declare
-            IDs_Ptr    : constant ID_Vec_Access := IDs'Unchecked_Access;
-            -- Each task needs to count up to Last-1 (pairs go I, I+1)
-            -- so we split on IDs.First_Index .. IDs.Last_Index - 1
-            Chunks     : constant Chunk_Array :=
-            Make_Chunks (IDs.First_Index,
-                           IDs.Last_Index - 1,
-                           Num_Tasks);
-            Tasks      : array (1 .. Num_Tasks) of Count_Task;
+            Best    : constant Token_Pair := Find_Best;
+            New_ID  : constant Token_ID   := T.Next_ID;
+            New_Str : constant Unbounded_String :=
+              T.Reverse_Vocab (Best.Left) & T.Reverse_Vocab (Best.Right);
          begin
-            -- Launch all counting tasks
-            for T_Idx in 1 .. Num_Tasks loop
-               Tasks (T_Idx).Start
-               (IDs_Ptr,
-                  Chunks (T_Idx).First,
-                  Chunks (T_Idx).Last);
-            end loop;
+            T_Best_Total := T_Best_Total + (Clock - T_Start);
 
-            -- Collect and merge partial counts
-            for T_Idx in 1 .. Num_Tasks loop
-               declare
-                  Partial : Pair_Count_Maps.Map;
-               begin
-                  Tasks (T_Idx).Get_Result (Partial);
-                  for Cursor in Partial.Iterate loop
-                     declare
-                        P        : constant Token_Pair :=
-                        Pair_Count_Maps.Key (Cursor);
-                        C        : constant Natural :=
-                        Pair_Count_Maps.Element (Cursor);
-                        Existing : Natural := 0;
-                     begin
-                        if Pair_Counts.Contains (P) then
-                           Existing := Pair_Counts (P);
-                        end if;
-                        Pair_Counts.Include (P, Existing + C);
-                     end;
-                  end loop;
-               end;
-            end loop;
-         end;
+            -- Register new token
+            T.Vocab.Include (New_Str, New_ID);
+            T.Reverse_Vocab.Include (New_ID, New_Str);
+            T.Merges.Append (Best);
+            T.Next_ID := T.Next_ID + 1;
 
-         exit when Pair_Counts.Is_Empty;
-
-         -- -------------------------------------------------------
-         --  Find best pair (single-threaded — fast map scan)
-         -- -------------------------------------------------------
-         declare
-            Best       : Token_Pair;
-            Best_Count : Natural := 0;
-         begin
-            for Cursor in Pair_Counts.Iterate loop
-               if Pair_Count_Maps.Element (Cursor) > Best_Count then
-                  Best_Count := Pair_Count_Maps.Element (Cursor);
-                  Best       := Pair_Count_Maps.Key (Cursor);
-               end if;
-            end loop;
-
+            -- -------------------------------------------------------
+            --  Incremental index update
+            --  Only touch positions affected by this merge
+            --  O(occurrences of Best) instead of O(corpus size)
+            -- -------------------------------------------------------
+            T_Start := Clock;
             declare
-               Left_Str : constant Unbounded_String :=
-               T.Reverse_Vocab (Best.Left);
-               Right_Str : constant Unbounded_String :=
-               T.Reverse_Vocab (Best.Right);
-               New_Str  : constant Unbounded_String :=
-               Left_Str & Right_Str;
-               New_ID   : constant Token_ID := T.Next_ID;
+               -- Copy positions before we start modifying the index
+               -- (iterating while modifying is unsafe)
+               Best_Positions : constant Position_Vec.Vector :=
+                 Positions (Best);
             begin
-               T.Vocab.Include (New_Str, New_ID);
-               T.Reverse_Vocab.Include (New_ID, New_Str);
-               T.Merges.Append (Best);
-               T.Next_ID := T.Next_ID + 1;
+               -- Remove the merged pair from the index entirely
+               Positions.Delete (Best);
 
-               -- ---------------------------------------------------
-               --  PHASE 2: Parallel apply merge
-               -- ---------------------------------------------------
-               declare
-                  IDs_Ptr : constant ID_Vec_Access := IDs'Unchecked_Access;
-                  Chunks  : constant Chunk_Array :=
-                  Make_Chunks (IDs.First_Index,
-                                 IDs.Last_Index,
-                                 Num_Tasks);
-                  Tasks   : array (1 .. Num_Tasks) of Apply_Task;
-                  New_IDs : ID_Vec.Vector;
-               begin
-                  -- Launch apply tasks
-                  for T_Idx in 1 .. Num_Tasks loop
-                     Tasks (T_Idx).Start
-                     (IDs_Ptr,
-                        Chunks (T_Idx).First,
-                        Chunks (T_Idx).Last,
-                        Best.Left,
-                        Best.Right,
-                        New_ID);
-                  end loop;
+               for K in Best_Positions.First_Index ..
+                        Best_Positions.Last_Index loop
+                  declare
+                     Pos : constant Natural := Best_Positions (K);
+                  begin
+                     -- Guard: skip if this slot was already consumed
+                     -- by an adjacent merge earlier in this loop
+                     if IDs (Pos) /= Deleted
+                       and then Pos < IDs.Last_Index
+                       and then IDs (Pos)     = Best.Left
+                       and then IDs (Pos + 1) = Best.Right
+                     then
+                        -- Fix left-neighbour pair
+                        -- Old pair: (IDs(Pos-1), Best.Left)  disappears
+                        -- New pair: (IDs(Pos-1), New_ID)     appears
+                        if Pos > IDs.First_Index
+                          and then IDs (Pos - 1) /= Deleted
+                        then
+                           Remove_Position
+                             ((Left  => IDs (Pos - 1),
+                               Right => Best.Left),
+                              Pos - 1);
+                           Add_Position
+                             ((Left  => IDs (Pos - 1),
+                               Right => New_ID),
+                              Pos - 1);
+                        end if;
 
-                  -- Collect results in order and stitch together
-                  for T_Idx in 1 .. Num_Tasks loop
-                     declare
-                        Partial : ID_Vec.Vector;
-                     begin
-                        Tasks (T_Idx).Get_Result (Partial);
-                        for ID of Partial loop
-                           New_IDs.Append (ID);
-                        end loop;
-                     end;
-                  end loop;
+                        -- Fix right-neighbour pair
+                        -- Old pair: (Best.Right, IDs(Pos+2))  disappears
+                        -- New pair: (New_ID,     IDs(Pos+2))  appears
+                        -- Note: Pos+1 will become Deleted, so
+                        -- the new pair sits at Pos, not Pos+1
+                        if Pos + 2 <= IDs.Last_Index
+                          and then IDs (Pos + 2) /= Deleted
+                        then
+                           Remove_Position
+                             ((Left  => Best.Right,
+                               Right => IDs (Pos + 2)),
+                              Pos + 1);
+                           Add_Position
+                             ((Left  => New_ID,
+                               Right => IDs (Pos + 2)),
+                              Pos);
+                        end if;
 
-                  IDs := New_IDs;
-               end;
+                        -- Apply merge: write New_ID at Pos,
+                        -- mark Pos+1 as deleted
+                        IDs (Pos)     := New_ID;
+                        IDs (Pos + 1) := Deleted;
+                     end if;
+                  end;
+               end loop;
             end;
-         end;
+            T_Update_Total := T_Update_Total + (Clock - T_Start);
 
+            -- -------------------------------------------------------
+            --  Compact: remove deleted slots and rebuild positions
+            --  for affected pairs so indices stay valid
+            -- -------------------------------------------------------
+            T_Start := Clock;
+            declare
+               IDs_Ptr         : constant ID_Vec_Access := IDs'Unchecked_Access;
+               Chunks          : constant Chunk_Array :=
+               Make_Chunks (IDs.First_Index, IDs.Last_Index, Num_Tasks);
+               Tasks           : array (1 .. Num_Tasks) of Compact_And_Index_Task;
+               New_IDs         : ID_Vec.Vector;
+               Chunk_End_Pos   : array (1 .. Num_Tasks) of Natural :=
+               (others => 0);
+            begin
+               New_IDs.Reserve_Capacity (IDs.Length);
+               Positions.Clear;
+
+               -- Launch all tasks
+               for T_Idx in 1 .. Num_Tasks loop
+                  Tasks (T_Idx).Start
+                  (IDs_Ptr,
+                     Chunks (T_Idx).First,
+                     Chunks (T_Idx).Last,
+                     Deleted);
+               end loop;
+
+               -- Collect results in order, tracking where each chunk ends
+               for T_Idx in 1 .. Num_Tasks loop
+                  declare
+                     Compacted : ID_Vec.Vector;
+                     Local_Idx : Position_Maps.Map;
+                     Offset    : constant Natural := Natural (New_IDs.Length);
+                  begin
+                     Tasks (T_Idx).Get_Result (Compacted, Local_Idx);
+
+                     -- Stitch IDs
+                     for ID of Compacted loop
+                        New_IDs.Append (ID);
+                     end loop;
+
+                     -- Record where this chunk ends in New_IDs
+                     Chunk_End_Pos (T_Idx) := Natural (New_IDs.Length) - 1;
+
+                     -- Merge local index into global with offset adjustment
+                     for Cursor in Local_Idx.Iterate loop
+                        declare
+                           P   : constant Token_Pair   := Position_Maps.Key (Cursor);
+                           Vec : constant Position_Vec.Vector :=
+                           Position_Maps.Element (Cursor);
+                        begin
+                           if not Positions.Contains (P) then
+                              Positions.Insert (P, Position_Vec.Empty_Vector);
+                           end if;
+                           for Pos of Vec loop
+                              Positions (P).Append (Pos + Offset);
+                           end loop;
+                        end;
+                     end loop;
+                  end;
+               end loop;
+
+               -- Fix boundary pairs: each chunk boundary has one pair
+               -- that neither task could see (last elem of chunk N, first of N+1)
+               for T_Idx in 1 .. Num_Tasks - 1 loop
+                  declare
+                     Boundary : constant Natural := Chunk_End_Pos (T_Idx);
+                  begin
+                     if Boundary >= New_IDs.First_Index
+                     and then Boundary < New_IDs.Last_Index
+                     then
+                        declare
+                           P : constant Token_Pair :=
+                           (Left  => New_IDs (Boundary),
+                              Right => New_IDs (Boundary + 1));
+                        begin
+                           if not Positions.Contains (P) then
+                              Positions.Insert (P, Position_Vec.Empty_Vector);
+                           end if;
+                           Positions (P).Append (Boundary);
+                        end;
+                     end if;
+                  end;
+               end loop;
+
+               ID_Vec.Move (Target => IDs, Source => New_IDs);
+            end;
+            T_Compact_Total := T_Compact_Total + (Clock - T_Start);
+         end;
       end loop;
+
+      -- =========================================================
+      --  Timing report
+      -- =========================================================
+      declare
+         Total : constant Duration :=
+           T_Build_Total + T_Best_Total +
+           T_Update_Total + T_Compact_Total;
+
+         function Pct (Part : Duration) return String is
+            P : constant Float := Float (Part) / Float (Total) * 100.0;
+         begin
+            return Natural'Image (Natural (P)) & "%";
+         end Pct;
+      begin
+         Put_Line ("=== Timing Breakdown ===");
+         Put_Line ("Build index: " & Duration'Image (T_Build_Total)   &
+                   "s  (" & Pct (T_Build_Total)   & ")");
+         Put_Line ("Find best:   " & Duration'Image (T_Best_Total)    &
+                   "s  (" & Pct (T_Best_Total)    & ")");
+         Put_Line ("Update idx:  " & Duration'Image (T_Update_Total)  &
+                   "s  (" & Pct (T_Update_Total)  & ")");
+         Put_Line ("Compact:     " & Duration'Image (T_Compact_Total) &
+                   "s  (" & Pct (T_Compact_Total) & ")");
+         Put_Line ("Total:       " & Duration'Image (Total) & "s");
+      end;
+
    end Merge_BPE;
-   
+
    function Train(Corpus_Path : String;
                   Vocab_Size  : Positive) return BPE_Tokenizer is
       T   : BPE_Tokenizer;
