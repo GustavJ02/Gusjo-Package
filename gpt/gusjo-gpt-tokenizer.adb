@@ -320,6 +320,13 @@ package body Gusjo.GPT.Tokenizer is
       return To_String (Result);
    end Decode;
 
+   function Decode (T  : BPE_Tokenizer;
+                    ID : Token_ID) return String is
+   begin
+      return To_String (T.Reverse_Vocab (ID));
+   end Decode;
+
+
    function Byte_To_Hex (B : Natural) return String is
       Hex_Chars : constant String := "0123456789abcdef";
    begin

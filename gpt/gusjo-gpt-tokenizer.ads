@@ -68,6 +68,9 @@ package Gusjo.GPT.Tokenizer is
      (T   : BPE_Tokenizer;
       IDs : ID_Vec.Vector) return String;
 
+   function Decode (T  : BPE_Tokenizer;
+                    ID : Token_ID) return String;
+
    procedure Save (T : BPE_Tokenizer; Path : String);
    function  Load (Path : String) return BPE_Tokenizer;
 
