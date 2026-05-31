@@ -28,7 +28,13 @@ package body Gusjo.GPT.Tokenizer is
                                     IDs         : in out ID_Vec.Vector) is
       File : Ada.Text_IO.File_Type;
    begin
-      Ada.Text_IO.Open(File, Ada.Text_IO.In_File, Corpus_Path);
+      begin
+         Ada.Text_IO.Open (File, Ada.Text_IO.In_File, Corpus_Path);
+      exception
+         when Ada.Text_IO.Name_Error =>
+            raise Gusjo.Internal_Error
+            with "Tokenizer: corpus file not found: " & Corpus_Path;
+
       while not Ada.Text_IO.End_Of_File(File) loop
          declare
             Line : constant String := Ada.Text_IO.Get_Line(File);
