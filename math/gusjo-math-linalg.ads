@@ -2,6 +2,9 @@ with Ada.Text_IO; use Ada.Text_IO;
 with Gusjo.Math;  use Gusjo.Math;
 With Gusjo;       use Gusjo;
 
+with Interfaces.C;
+use type Interfaces.C.int;
+
 -- N, Range(1) => Rows
 -- M, Range(2) => Cols
 
@@ -14,8 +17,6 @@ package Gusjo.Math.Linalg is
    type Column_Vector_Array is array (Positive range <>) of Column_Vector;
 
    type Row_Vector_Array is array (Positive range <>) of Row_Vector;
-
-   type Float_Array is array (Natural range <>) of Float;
    
    ------------------ Get/Put Matrix ------------------
    

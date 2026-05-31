@@ -10,6 +10,8 @@ with System.Multiprocessors;
 
 with Ada.Numerics.Elementary_Functions;   use Ada.Numerics.Elementary_Functions;
 
+with gusjo.math.CUDA;   use gusjo.math.CUDA;
+
 package body Gusjo.Math.Linalg is
 
    Parallel_Matmul_Min_Ops : constant Long_Long_Integer := 1_000_000;
@@ -719,7 +721,7 @@ package body Gusjo.Math.Linalg is
    
    ----------------------------------------------------------------------------------
    
-   function "*"(Left, Right : in Matrix) return Matrix is
+   function CPU_MatMul(Left, Right : in Matrix) return Matrix is
       Result : Matrix;
       Left_Rows     : Positive;
       Left_Cols     : Positive;
@@ -823,6 +825,36 @@ package body Gusjo.Math.Linalg is
 
       return Result;
       
+   end CPU_MatMul;
+
+   function GPU_MatMul(Left, Right : in Matrix) return Matrix is
+      M : constant Positive := Left.all'Length(1);
+      K : constant Positive := Left.all'Length(2);
+      N : constant Positive := Right.all'Length(2);
+      Result : constant Matrix   :=
+         new Matrix_Type (1 .. M, 1 .. N);
+   begin
+      CUDA_Matmul
+         (A => Left.all (Left.all'First (1), Left.all'First (2))'Address,
+         B => Right.all (Right.all'First (1), Right.all'First (2))'Address,
+         C => Result.all (Result.all'First (1), Result.all'First (2))'Address,
+         M => Interfaces.C.int (M),
+         K => Interfaces.C.int (K),
+         N => Interfaces.C.int (N));
+      return Result;
+   end GPU_MatMul;
+
+   function "*"(Left, Right : in Matrix) return Matrix is
+      GPU_Threshold : constant Positive := 256;
+   begin
+      if CUDA_Available
+         and then Rows(Left) >= GPU_Threshold
+         and then Cols(Right) >= GPU_Threshold
+      then
+         return GPU_Matmul(Left, Right);
+      else
+         return CPU_MatMul(Left, Right);
+      end if;
    end "*";
    
    function "*"(Left  : in Matrix;

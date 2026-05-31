@@ -6,6 +6,7 @@ package Gusjo.Math is
    
    type Column_Vector is private;
    
+   type Float_Array is array (Natural range <>) of Float;
    
 private
    
