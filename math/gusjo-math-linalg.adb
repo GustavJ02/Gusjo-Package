@@ -690,6 +690,18 @@ package body Gusjo.Math.Linalg is
       end if;
       return Item(I, II);
    end Element_at;
+
+   ----------------------------------------------------------------------------------
+
+   procedure Element_at(Item  : in Matrix;
+                        I, II : in Positive;
+                        E     : in Float) is
+   begin
+      if I > Rows(Item) or II > Cols(Item) then
+         raise Index_Out_Of_Bounds_Error with "Index:" & Integer'Image(I) & "," & Integer'Image(II) & " out of bounds:" & Integer'Image(Rows(Item)) & "," & Integer'Image(Cols(Item));
+      end if;
+      Item(I, II) := E;
+   end Element_at;
    ----------------------------------------------------------------------------------
    
    function Copy_Dimension(Item : in Matrix) return Matrix is

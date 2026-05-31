@@ -157,6 +157,12 @@ package Gusjo.Math.Linalg is
    function Element_at(Item   : in Matrix;
                        I, II  : in Positive) return Float;
 
+   ------------------ SETTERS ------------------
+
+   procedure Element_at(Item  : in Matrix;
+                        I, II : in Positive;
+                        E     : in Float);
+
    ------------------ OPERATORS ------------------
    
    function "*"(Left, Right : in Matrix)  return Matrix;
