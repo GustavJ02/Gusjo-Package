@@ -4,7 +4,9 @@ with Ada.Directories;         use Ada.Directories;
 
 with Gusjo.Ai;                use Gusjo.Ai;
 with Gusjo.Ai.Nn;             use Gusjo.Ai.Nn;
+with Gusjo.IO;
 with Gusjo.Math;              use Gusjo.Math;
+with Gusjo.Math.CUDA;         use Gusjo.Math.CUDA;
 with Gusjo.Data.Frame;        use Gusjo.Data.Frame;
 with Gusjo.Math.Linalg;       use Gusjo.Math.Linalg;
 with Gusjo.Math.Optimization; use Gusjo.Math.Optimization;
@@ -35,6 +37,12 @@ procedure Animal_Nn is
    Training_Result : Optimization_Result;
 
 begin
+   if CUDA_Available then
+      Put_Line("CUDA Available");
+   else
+      Put_Line("CUDA NOT Available");
+   end if;
+   
    Put_Line("Loading animals dataset...");
    If Exists("data/datafiles/animals.adadf") then
       Load_Binary("data/datafiles/animals.adadf", DF);
