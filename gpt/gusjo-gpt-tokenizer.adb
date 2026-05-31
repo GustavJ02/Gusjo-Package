@@ -180,11 +180,6 @@ package body Gusjo.GPT.Tokenizer is
 
       Build_Position_Index;
       while Natural (T.Vocab.Length) < Vocab_Size loop
-         if (Natural (T.Vocab.Length) mod 100) = 0 then
-            Put_Line ("Current Vocab Size:" &
-                      Natural'Image (Natural (T.Vocab.Length)));
-         end if;
-
          exit when Pair_Counts.Is_Empty;
 
          declare
