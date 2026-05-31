@@ -1,5 +1,6 @@
 with Ada.Text_IO; use Ada.Text_IO;
 with Gusjo.Math;  use Gusjo.Math;
+with Gusjo.ds;    use Gusjo.ds;
 With Gusjo;       use Gusjo;
 
 with Interfaces.C;
@@ -152,7 +153,10 @@ package Gusjo.Math.Linalg is
    function CrossEntropy_OneHot(P, Y : in Column_Vector) return Float;
 
    function CrossEntropy_OneHot(P, Y : in Matrix) return Float;
-   
+
+   function Element_at(Item   : in Matrix;
+                       I, II  : in Positive) return Float;
+
    ------------------ OPERATORS ------------------
    
    function "*"(Left, Right : in Matrix)  return Matrix;
