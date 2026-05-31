@@ -50,19 +50,4 @@ begin
 
    Save (T, To_String (Output_File_Path));
    Put_Line ("Saved to '" & To_String (Output_File_Path) & "'");
-
-   -- Spot check a domain-specific term
-   declare
-      Term    : constant String          := "aerodynamic";
-      Encoded : constant ID_Vec.Vector   := Encode (T, Term);
-      Decoded : constant String          := Decode (T, Encoded);
-   begin
-      Put ("'" & Term & "' encodes to " &
-           Natural'Image (Natural (Encoded.Length)) & " token(s): ");
-      for ID of Encoded loop
-         Put (Token_ID'Image (ID) & " ");
-      end loop;
-      New_Line;
-      Put_Line ("Decoded: " & Decoded);
-   end;
 end Train_Tokenizer;
