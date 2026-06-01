@@ -22,27 +22,71 @@ package body Gusjo.Math.Linalg is
    
    procedure Free is new Ada.Unchecked_Deallocation(Matrix_Type, Column_Vector);
 
+   function Environment_Variable_Exists(Name : in String) return Boolean is
+   begin
+      return Ada.Environment_Variables.Exists(Name);
+   end Environment_Variable_Exists;
+
+   function Environment_Variable_Get_Value_As_String(Name : in String) return String is
+   begin
+      if not Environment_Variable_Exists (Name) then
+         return "";
+      end if;
+      declare
+         Value : constant String :=
+            Ada.Strings.Fixed.Trim(
+               Ada.Environment_Variables.Value("GUSJO_MATMUL_WORKERS"),
+               Ada.Strings.Both);
+      begin
+         return Value;
+      end;
+   end Environment_Variable_Get_Value_As_String;
+
+   function Environment_Variable_Get_Value_As_Boolean(Name : in String) return Boolean is
+   begin
+      if not Environment_Variable_Exists (Name) then
+         return False;
+      end if;
+      declare
+         Value : constant String := Environment_Variable_Get_Value_As_String(Name);
+      begin
+         return Value = "True" or else Value = "true"
+           or else Value = "T" or else Value = "t" or else Value = "1";
+      end;
+   end Environment_Variable_Get_Value_As_Boolean;
+
+   function Environment_Variable_Get_Value_As_Positive(Name : in String;
+                                                       Default : in Positive := 1) return Positive is
+   begin
+      if not Environment_Variable_Exists (Name) then
+         return Default;
+      end if;
+      declare
+         Value  : constant String  := Environment_Variable_Get_Value_As_String(Name);
+         Parsed : constant Positive := Positive'Value(Value);
+      begin
+         return Parsed;
+      exception
+         when Constraint_Error =>
+            return Default;
+      end;
+   end Environment_Variable_Get_Value_As_Positive;
+
    function Matmul_Worker_Count return Positive is
       Default_Count : constant Positive :=
          Positive(System.Multiprocessors.Number_Of_CPUs);
    begin
-      if Ada.Environment_Variables.Exists("GUSJO_MATMUL_WORKERS") then
-         declare
-            Value : constant String :=
-               Ada.Strings.Fixed.Trim(
-                  Ada.Environment_Variables.Value("GUSJO_MATMUL_WORKERS"),
-                  Ada.Strings.Both);
-            Parsed : constant Positive := Positive'Value(Value);
-         begin
-            return Parsed;
-         exception
-            when Constraint_Error =>
-               null;
-         end;
-      end if;
-
-      return Default_Count;
+      return Environment_Variable_Get_Value_As_Positive("GUSJO_MATMUL_WORKERS", Default_Count);
    end Matmul_Worker_Count;
+
+   function CUDA_ENV_ENABLED return Boolean is
+   begin
+      if Environment_Variable_Exists("GUSJO_MATMUL_USE_CUDA") then
+         return Environment_Variable_Get_Value_As_Boolean("GUSJO_MATMUL_USE_CUDA");
+      else
+         return True;
+      end if;
+   end CUDA_ENV_ENABLED;
    
    procedure Delete(Item : in out Matrix) is
    begin
