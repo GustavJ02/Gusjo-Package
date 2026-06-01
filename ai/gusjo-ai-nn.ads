@@ -1,7 +1,7 @@
-with Gusjo.Math;  use Gusjo.Math;
-with Gusjo.Math.Optimization;
-with Gusjo.Ai;    use Gusjo.Ai;
-with Ada.Text_IO; use Ada.Text_IO;
+with Gusjo.Math;              use Gusjo.Math;
+with Gusjo.Math.Optimization; use Gusjo.Math.Optimization;
+with Gusjo.Ai;                use Gusjo.Ai;
+with Ada.Text_IO;             use Ada.Text_IO;
 
 package Gusjo.Ai.Nn is
    type Dense_Layer is private;
@@ -66,9 +66,9 @@ package Gusjo.Ai.Nn is
       M : in out Model;
       X : in     Matrix;
       Y : in     Matrix;
-      Config : in Gusjo.Math.Optimization.Optimizer_Config;
-      Result : out Gusjo.Math.Optimization.Optimization_Result;
-      Verbose : in Natural := 0);
+      Config  : in  Optimizer_Config;
+      Result  : out Optimization_Result;
+      Verbose : in  Natural := 0);
 private
 
    type Dense_Layer is
@@ -79,6 +79,8 @@ private
          dW, dB      : Matrix;
          dA          : Column_Vector;
          A_M, Z_M    : Matrix;
+         W_State     : Optimizer_State;
+         B_State     : Optimizer_State;
       end record;
 
    type Layers_Array is 
