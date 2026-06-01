@@ -17,7 +17,18 @@ procedure Iris_Nn is
       Max_Epochs => 10000,
       Gradient_Tolerance => 1.0E-5,
       Loss_Tolerance => 1.0E-5,
-      Clip_Threshold => 0.0);
+      Clip_Threshold => 0.0,
+      Beta_1 => 0.9,
+      Beta_2 => 0.999,
+      Epsilon => 1.0e-8,
+      Weight_Decay => 0.1,
+      Schedule => (
+         Kind         => Constant_LR,
+         Warmup_Steps => 0,
+         Min_LR       => 0.0,
+         Total_Steps  => 0
+      )
+      );
 
    procedure Print_Accuracy(Label : String;
                             Predicted, Actual : Indices_Array) is
