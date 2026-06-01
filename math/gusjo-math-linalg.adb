@@ -35,7 +35,7 @@ package body Gusjo.Math.Linalg is
       declare
          Value : constant String :=
             Ada.Strings.Fixed.Trim(
-               Ada.Environment_Variables.Value("GUSJO_MATMUL_WORKERS"),
+               Ada.Environment_Variables.Value(Name),
                Ada.Strings.Both);
       begin
          return Value;
@@ -87,6 +87,15 @@ package body Gusjo.Math.Linalg is
          return True;
       end if;
    end CUDA_ENV_ENABLED;
+
+   function FORCE_CUDA return Boolean is
+   begin
+      if Environment_Variable_Exists("GUSJO_MATMUL_FORCE_CUDA") then
+         return Environment_Variable_Get_Value_As_Boolean("GUSJO_MATMUL_FORCE_CUDA");
+      else
+         return False;
+      end if;
+   end FORCE_CUDA;
    
    procedure Delete(Item : in out Matrix) is
    begin
@@ -908,12 +917,19 @@ package body Gusjo.Math.Linalg is
       return Result;
    end GPU_MatMul;
 
+   function GPU_Matmul_Available return Boolean is (CUDA_Available);
+
+   function GPU_Matmul_Env_Enabled return Boolean is (CUDA_ENV_ENABLED);
+
    function "*"(Left, Right : in Matrix) return Matrix is
       GPU_Threshold : constant Positive := 256;
    begin
-      if CUDA_Available
+      if FORCE_CUDA or
+         (CUDA_ENV_ENABLED
+         and then CUDA_Available
          and then Rows(Left) >= GPU_Threshold
          and then Cols(Right) >= GPU_Threshold
+         )
       then
          return GPU_Matmul(Left, Right);
       else

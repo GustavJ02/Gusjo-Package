@@ -273,8 +273,16 @@ package Gusjo.Math.Linalg is
    function OneHot_From_Labels(Labels        : in Indices_Array;
                                Num_Classes   : in Positive) return Matrix;
    
+   ------------------ GPU / CUDA QUERIES ------------------
+
+   -- True if a CUDA-capable GPU is present
+   function GPU_Matmul_Available return Boolean;
+
+   -- True if GUSJO_MATMUL_USE_CUDA is unset or set to a truthy value
+   function GPU_Matmul_Env_Enabled return Boolean;
+
    ------------------ EXCEPTIONS ------------------
-   
+
    Dimension_Error        : exception;
    Invertion_Error        : exception;
    
