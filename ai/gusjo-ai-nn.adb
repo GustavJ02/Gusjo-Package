@@ -26,6 +26,8 @@ package body Gusjo.Ai.Nn is
       Delete(L.dW);
       Delete(L.dB);
       Delete(L.dA);
+      Free_State(L.W_State);
+      Free_State(L.B_State);
    end Free_One_Layer;
 
    -- Create an empty model with chosen loss
@@ -423,42 +425,69 @@ package body Gusjo.Ai.Nn is
       Delete(dA_prev);
    end Backward;
 
-   procedure Step(M                 : in out Model;
-                   Learning_Rate    : in     Float := 0.01;
-                   Clip_Threshold   : in     Float := 0.0) is
+   procedure Clip_Layer_Grads (dW, dB       : in out Matrix;
+                               Clip_Threshold : in     Float) is
+      NormW : constant Float := L2_Norm (dW);
+      NormB : constant Float := L2_Norm (dB);
+      Norm  : constant Float := Sqrt (NormW ** 2 + NormB ** 2);
+   begin
+      if Norm > Clip_Threshold then
+         declare
+            Scale : constant Float := Clip_Threshold / Norm;
+         begin
+            Scale_In_Place (dW, Scale);
+            Scale_In_Place (dB, Scale);
+         end;
+      end if;
+   end Clip_Layer_Grads;
 
-      L                    : Dense_Layer;
-      ScW, ScB, NewW, NewB : Matrix;
-      Norm, NormW, NormB, Scale : Float;
+   -- Simple GD step: in-place, zero allocations
+   procedure Step (M              : in out Model;
+                   Learning_Rate  : in     Float := 0.01;
+                   Clip_Threshold : in     Float := 0.0) is
    begin
       for I in M.Ls'Range loop
-         L := M.Ls(I);
+         declare
+            L : Dense_Layer renames M.Ls (I);
+         begin
+            if Clip_Threshold > 0.0 then
+               Clip_Layer_Grads (L.dW, L.dB, Clip_Threshold);
+            end if;
+            GD_Update (L.W, L.dW, Learning_Rate);
+            GD_Update (L.B, L.dB, Learning_Rate);
+         end;
+      end loop;
+   end Step;
 
-         NormW := L2_Norm(L.dW);
-         NormB := L2_Norm(L.dB);
-         Norm  := Sqrt(NormW ** 2 + NormB ** 2);
-         Scale := Clip_Threshold / Norm;
-
-         if (Clip_Threshold > 0.0) and then Norm > Clip_Threshold then
-            Scale_In_Place(L.dW, Scale);
-            Scale_In_Place(L.dB, Scale);
-         end if;
-
-         ScW  :=(-Learning_Rate) * L.dW;
-         ScB  :=(-Learning_Rate) * L.dB;
-         NewW := L.w + ScW;
-         NewB := L.B + ScB;
-         
-         Delete(L.W);
-         L.W := NewW;
-         
-         Delete(L.B);
-         L.B := NewB;
-
-         Delete(ScW);
-         Delete(ScB);
-
-         M.Ls(I) := L;
+   -- Optimizer step using the optimization package (Adam/AdamW/SGD/GD)
+   procedure Step (M            : in out Model;
+                   Config       : in     Optimizer_Config;
+                   Current_Step : in     Natural) is
+      -- Build a no-clip config: we do combined W+B clipping above,
+      -- so Optimize_Step must not clip again independently.
+      No_Clip_Config : constant Optimizer_Config :=
+        (Method             => Config.Method,
+         Learning_Rate      => Config.Learning_Rate,
+         Beta_1             => Config.Beta_1,
+         Beta_2             => Config.Beta_2,
+         Epsilon            => Config.Epsilon,
+         Weight_Decay       => Config.Weight_Decay,
+         Clip_Threshold     => 0.0,
+         Max_Epochs         => Config.Max_Epochs,
+         Gradient_Tolerance => Config.Gradient_Tolerance,
+         Loss_Tolerance     => Config.Loss_Tolerance,
+         Schedule           => Config.Schedule);
+   begin
+      for I in M.Ls'Range loop
+         declare
+            L : Dense_Layer renames M.Ls (I);
+         begin
+            if Config.Clip_Threshold > 0.0 then
+               Clip_Layer_Grads (L.dW, L.dB, Config.Clip_Threshold);
+            end if;
+            Optimize_Step (L.W, L.dW, No_Clip_Config, L.W_State, Current_Step);
+            Optimize_Step (L.B, L.dB, No_Clip_Config, L.B_State, Current_Step);
+         end;
       end loop;
    end Step;
 
@@ -665,39 +694,43 @@ package body Gusjo.Ai.Nn is
    end Train_Batch;
 
    procedure Train_Batch(
-      M : in out Model;
-      X : in     Matrix;
-      Y : in     Matrix;
-      Config : in Optimizer_Config;
-      Result : out Optimization_Result;
-      Verbose : in Natural := 0) is
+      M       : in out Model;
+      X       : in     Matrix;
+      Y       : in     Matrix;
+      Config  : in     Optimizer_Config;
+      Result  : out    Optimization_Result;
+      Verbose : in     Natural := 0) is
 
-      Previous_Loss : Float := 0.0;
-      Current_Loss : Float := 0.0;
-      Current_Gradient_Norm : Float := 0.0;
-      Has_Previous_Loss : Boolean := False;
+      Previous_Loss         : Float   := 0.0;
+      Current_Loss          : Float   := 0.0;
+      Current_Gradient_Norm : Float   := 0.0;
+      Has_Previous_Loss     : Boolean := False;
    begin
       Result := (
-         Epochs_Run => 0,
-         Final_Loss => 0.0,
+         Epochs_Run          => 0,
+         Final_Loss          => 0.0,
          Final_Gradient_Norm => 0.0,
-         Reason => Max_Epochs_Reached);
+         Reason              => Max_Epochs_Reached);
 
-      case Config.Method is
-         when Gradient_Descent =>
-            null;
-         when Newton_Method | BFGS =>
-            raise Constraint_Error with
-               "Train_Batch: optimizer method is not implemented for neural networks";
-      end case;
+      -- Reset per-layer optimizer states so step counter starts from 1
+      for I in M.Ls'Range loop
+         declare
+            L : Dense_Layer renames M.Ls (I);
+         begin
+            Free_State (L.W_State);
+            Free_State (L.B_State);
+            L.W_State := Make_State (Config.Method);
+            L.B_State := Make_State (Config.Method);
+         end;
+      end loop;
 
       for Epoch in 1 .. Config.Max_Epochs loop
-         Backward_Batch(M, X, Y);
-         Current_Gradient_Norm := Gradient_Norm(M);
-         Current_Loss := Cached_Batch_Loss(M, Y);
+         Backward_Batch (M, X, Y);
+         Current_Gradient_Norm := Gradient_Norm (M);
+         Current_Loss          := Cached_Batch_Loss (M, Y);
 
-         Result.Epochs_Run := Epoch;
-         Result.Final_Loss := Current_Loss;
+         Result.Epochs_Run          := Epoch;
+         Result.Final_Loss          := Current_Loss;
          Result.Final_Gradient_Norm := Current_Gradient_Norm;
 
          if Config.Gradient_Tolerance > 0.0
@@ -716,17 +749,14 @@ package body Gusjo.Ai.Nn is
          end if;
 
          if Verbose > 0 and then Epoch mod Verbose = 0 then
-            Put_Line("Epoch " & Integer'Image(Epoch) &
-                     ": Loss=" & Float'Image(Current_Loss) &
-                     ", GradNorm=" & Float'Image(Current_Gradient_Norm));
+            Put_Line ("Epoch " & Integer'Image (Epoch) &
+                      ": Loss=" & Float'Image (Current_Loss) &
+                      ", GradNorm=" & Float'Image (Current_Gradient_Norm));
          end if;
 
-         Step(
-            M,
-            Learning_Rate => Config.Learning_Rate,
-            Clip_Threshold => Config.Clip_Threshold);
+         Step (M, Config, Epoch);
 
-         Previous_Loss := Current_Loss;
+         Previous_Loss     := Current_Loss;
          Has_Previous_Loss := True;
       end loop;
    end Train_Batch;
